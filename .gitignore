@@ -1,0 +1,14 @@
+# generated cores + downloads (rebuilt by benchmark.py)
+lib/
+Packages/
+
+# generated results + per-process scratch (benchmark.py)
+bench/memory.json
+bench/results.json
+bench/_scratch.luau
+*.svg
+
+# tooling cruft
+__pycache__
+.DS_Store
+wally.lock

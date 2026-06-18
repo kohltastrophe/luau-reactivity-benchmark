@@ -1,0 +1,87 @@
+name: CI-CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - wally.toml
+      - adapters/**
+  workflow_dispatch:
+
+concurrency:
+  group: update-chart
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  update-chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install luau
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/luau.zip "https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip"
+          unzip -o /tmp/luau.zip -d /tmp/luau-bin
+          chmod +x /tmp/luau-bin/luau
+          sudo mv /tmp/luau-bin/luau /usr/local/bin/luau
+          rm -rf /tmp/luau.zip /tmp/luau-bin
+          luau --help | grep -q -- --codegen
+
+      - name: Install wally
+        run: |
+          set -euo pipefail
+          WALLY_VERSION="0.3.2"
+          curl -fsSL -o /tmp/wally.zip "https://github.com/UpliftGames/wally/releases/download/v${WALLY_VERSION}/wally-v${WALLY_VERSION}-linux.zip"
+          unzip -o /tmp/wally.zip -d /tmp/wally-bin
+          chmod +x /tmp/wally-bin/wally
+          sudo mv /tmp/wally-bin/wally /usr/local/bin/wally
+          rm -rf /tmp/wally.zip /tmp/wally-bin
+          wally --version
+
+      - name: Verify correctness
+        env:
+          BENCH_CAP: "15"
+        run: python3 benchmark.py --verify
+
+      - name: Run benchmark and render chart
+        run: python3 benchmark.py
+
+      - name: Publish charts to assets branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          test -f chart.svg
+          test -f chart-small.svg
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git fetch --depth=1 origin assets 2>/dev/null; then
+            if git cat-file -p FETCH_HEAD:chart.svg 2>/dev/null | cmp -s - chart.svg && \
+               git cat-file -p FETCH_HEAD:chart-small.svg 2>/dev/null | cmp -s - chart-small.svg; then
+              echo "Both charts unchanged on assets branch; nothing to publish."
+              exit 0
+            fi
+          fi
+
+          blob_main=$(git hash-object -w chart.svg)
+          blob_small=$(git hash-object -w chart-small.svg)
+
+          tree=$(printf '100644 blob %s\tchart.svg\n100644 blob %s\tchart-small.svg\n' "$blob_main" "$blob_small" | git mktree)
+
+          commit=$(git commit-tree "$tree" -m "Update chart.svg and chart-small.svg")
+          git push --force origin "$commit:refs/heads/assets"
+
+          echo "Published chart.svg and chart-small.svg to the assets branch ($commit)."
