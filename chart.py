@@ -11,6 +11,10 @@ OUT_SMALL = os.path.join(ROOT, "chart-small.svg")
 
 CAP = float(os.environ.get("BENCH_CAP", 60))
 
+IN_GHA = "GITHUB_ACTIONS" in os.environ
+BG_STYLE = ".bg{fill:#0000}" if IN_GHA else ".bg{fill:#fff}"
+BG_DARK_STYLE = "" if IN_GHA else ".bg{fill:#0d1117}"
+
 DNF_REASON = {
     "overflow": "stack overflow",
     "table-overflow": "table overflow",
@@ -31,9 +35,9 @@ SUITE_TITLES = {
 
 # ---- geometry ------------------------------------------------------------------
 W = 960
-M_T = 0  # outer top margin
-M_L = 0  # outer left margin
-M_R = 8  # outer right margin
+M_T = 0 if IN_GHA else 24  # outer top margin
+M_L = 0 if IN_GHA else 24  # outer left margin
+M_R = 8 if IN_GHA else 24  # outer right margin
 GUTTER = 188  # row-label gutter width
 X0 = M_L + GUTTER  # plot left edge (the value=0 origin)
 X1 = W - M_R  # plot right edge
@@ -54,8 +58,8 @@ STYLE = (
     "text{font-family:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;"
     "-webkit-font-smoothing:antialiased}"
     ".mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}"
-    ".bg{fill:#0000}"
-    ".tt{fill:#11181c}.tm{fill:#697177}.tl{fill:#3a4248}.tw{fill:#fff}"
+    + BG_STYLE
+    + ".tt{fill:#11181c}.tm{fill:#697177}.tl{fill:#3a4248}.tw{fill:#fff}"
     ".grid{stroke:#e6e9ed;stroke-width:1;stroke-dasharray:2 4}"
     ".gridkey{stroke:#c3cbd2;stroke-width:1}"
     ".zebra{fill:#11181c;opacity:.022}"
@@ -75,7 +79,7 @@ STYLE = (
     ".tt{fill:#e6edf3}.tm{fill:#8b949e}.tl{fill:#c3cbd6}"
     ".grid{stroke:#21262d}.gridkey{stroke:#3a434d}"
     ".lnk:hover{fill:#e6edf3}"
-    ".zebra{fill:#fff;opacity:.025}}"
+    ".zebra{fill:#fff;opacity:.025}" + BG_DARK_STYLE + "}"
     "</style>"
 )
 
