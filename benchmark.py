@@ -338,7 +338,7 @@ def drive(flag, names, keys):
 
 def combine(passes):
     """Reduce passes to the per-(framework, test) min, write results.json, print ranked geomean."""
-    best, fws, order, seen = {}, [], [], set()
+    best, fws, order, seen, caps = {}, [], [], set(), {}
     for rows in passes:
         for r in rows:
             if r["framework"] not in fws:
@@ -346,6 +346,9 @@ def combine(passes):
             if r["test"] not in seen:
                 seen.add(r["test"])
                 order.append(r["test"])
+            cap = r.get("cap")
+            if cap is not None:
+                caps[r["test"]] = cap
             key = (r["framework"], r["test"])
             secs, cur = r.get("seconds"), best.get(key)
             if secs is None:
@@ -369,6 +372,7 @@ def combine(passes):
                     "test": test,
                     "seconds": secs,
                     "status": status,
+                    "cap": caps.get(t),
                 }
             )
     with open(RESULTS, "w") as f:
@@ -394,7 +398,8 @@ def combine(passes):
             else:
                 line += "DNF".rjust(12)
                 if best.get((fw, t), (None, "dnf"))[1] not in EXCLUDED_FROM_MEAN:
-                    logs[fw][0] += math.log(CAP / ref)
+                    charge = caps.get(t) or CAP  # bench's own time budget, else the process cap
+                    logs[fw][0] += math.log(charge / ref)
                     logs[fw][1] += 1
         print(line)
     geo = "GEOMEAN".ljust(w)
@@ -403,8 +408,9 @@ def combine(passes):
         geo += (f"{math.exp(logs[fw][0] / n):.3f}x" if n else "-").rjust(12)
     print(geo)
     print(
-        f"(min across {len(passes)} pass(es); geomean charges DNFs the {CAP:.0f}s cap "
-        f"over {rows_counted} rows, unexpected errors excluded)"
+        f"(min across {len(passes)} pass(es); geomean charges each DNF its bench time budget "
+        f"-- per-bench cap where set, else the {CAP:.0f}s process cap -- over {rows_counted} rows, "
+        f"unexpected errors excluded)"
     )
 
 

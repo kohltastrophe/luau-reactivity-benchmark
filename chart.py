@@ -196,7 +196,8 @@ def frameworks_and_colors(order, data):
             if secs is not None:
                 rels[fw].append(secs / best)
             elif r.get("status") not in EXCLUDED_FROM_MEAN:
-                rels[fw].append(CAP / best)  # failed to complete -> charged the cap
+                cap = r.get("cap")
+                rels[fw].append((cap if cap is not None else CAP) / best)
             # else: a genuine unexpected error -> left out of this framework's mean
     geo = {
         fw: (math.exp(sum(map(math.log, xs)) / len(xs)) if xs else None)
@@ -269,7 +270,7 @@ def main():
     )
     front.append(
         f'<text x="{X1}" y="{y}" class="tm e" font-size="10">'
-        f"over {complete_rows} of {len(order)} rows · DNF charged the {int(CAP)}s cap</text>"
+        f"over {complete_rows} of {len(order)} rows · DNF charged its per-bench time cap</text>"
     )
     y += 12
 
@@ -310,8 +311,9 @@ def main():
         f'Port of <a href="https://github.com/milomg/js-reactivity-benchmark" class="lnk">milomg/js-reactivity-benchmark</a> · normalised per row to the fastest '
         f"framework (1.0×, shorter = faster) · process-isolated, fastest-of-N per run.</text>"
         f'<text x="{M_L}" y="{total_h - 11}" class="tm s95">'
-        f"Faded bars exceed {int(MAX_REL)}× (true multiple labelled) · a DNF is charged the "
-        f"{int(CAP)}s cap in the geomean (an unexpected error is excluded instead).</text>"
+        f"Faded bars exceed {int(MAX_REL)}× (true multiple labelled) · a DNF is charged its "
+        f"benchmark's time budget (per-bench cap, else the {int(CAP)}s process cap) in the geomean "
+        f"(an unexpected error is excluded instead).</text>"
     )
 
     defs = (
@@ -501,8 +503,9 @@ def main():
         f'Port of <a href="https://github.com/milomg/js-reactivity-benchmark" class="lnk">milomg/js-reactivity-benchmark</a> · normalised per row to the fastest '
         f"framework (1.0×, shorter = faster) · process-isolated, fastest-of-N per run.</text>"
         f'<text x="{M_L}" y="{total_h - 11}" class="tm s95">'
-        f"Faded bars exceed {int(MAX_REL)}× (true multiple labelled) · a DNF is charged the "
-        f"{int(CAP)}s cap in the geomean (an unexpected error is excluded instead).</text>"
+        f"Faded bars exceed {int(MAX_REL)}× (true multiple labelled) · a DNF is charged its "
+        f"benchmark's time budget (per-bench cap, else the {int(CAP)}s process cap) in the geomean "
+        f"(an unexpected error is excluded instead).</text>"
     )
 
     defs = (

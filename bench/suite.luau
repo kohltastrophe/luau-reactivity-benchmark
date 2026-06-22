@@ -41,7 +41,7 @@ local function fastest(repeats, fn): (number?, string)
 	return best, "ok"
 end
 
-local benches: { { key: string, run: (any) -> (number?, string) } } = {}
+local benches: { { key: string, cap: number?, run: (any) -> (number?, string) } } = {}
 
 for _, case in kairo do
 	table.insert(benches, {
@@ -98,6 +98,7 @@ table.insert(benches, {
 for _, config in dynamic.configs do
 	table.insert(benches, {
 		key = "dynamic/" .. dynamic.title(config),
+		cap = dynamic.timeCap, -- each run self-deadlines here; a DNF means it hit this budget
 		run = function(bridge)
 			local built = dynamic.makeGraph(bridge, config)
 			local t, st = fastest(5, function()
@@ -242,7 +243,7 @@ for i, b in benches do
 	M.keys[i] = b.key
 end
 
-export type Row = { framework: string, test: string, seconds: number?, status: string }
+export type Row = { framework: string, test: string, seconds: number?, status: string, cap: number? }
 
 -- `name` is the adapter's folder name, supplied by benchmark.py; it labels each row.
 function M.run(bridge, name: string, i: number): Row
@@ -250,27 +251,29 @@ function M.run(bridge, name: string, i: number): Row
 	if bridge.DNF then
 		local reason = bridge.DNF[bench.key]
 		if reason then
-			return { framework = name, test = bench.key, seconds = nil, status = reason }
+			return { framework = name, test = bench.key, seconds = nil, status = reason, cap = bench.cap }
 		end
 	end
 	local ok, secs, status = pcall(bench.run, bridge)
 	if not ok then
 		secs, status = nil, classify(secs)
 	end
-	return { framework = name, test = bench.key, seconds = secs, status = status :: string }
+	return { framework = name, test = bench.key, seconds = secs, status = status :: string, cap = bench.cap }
 end
 
 function M.printRow(bridge, name: string, i: number)
 	local r = M.run(bridge, name, i)
 	local s = if r.seconds then string.format("%.9f", r.seconds) else "null"
 	local status = r.status:gsub("\\", "\\\\"):gsub('"', '\\"')
+	local cap = if r.cap then string.format(',"cap":%.6f', r.cap) else ""
 	print(
 		string.format(
-			'__ROW_JSON__{"framework":"%s","test":"%s","seconds":%s,"status":"%s"}',
+			'__ROW_JSON__{"framework":"%s","test":"%s","seconds":%s,"status":"%s"%s}',
 			r.framework,
 			r.test,
 			s,
-			status
+			status,
+			cap
 		)
 	)
 end
