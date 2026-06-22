@@ -507,7 +507,7 @@ def main():
     mem_present = [fw for fw in FRAMEWORKS if fw in MEM] if MEM else []
     if mem_present:
         mem_rows = [
-            ("footprint", lambda d: d.get("bytesPerNode"), fmt_bytes_node),
+            ("node footprint", lambda d: d.get("bytesPerNode"), fmt_bytes_node),
             ("build retained", lambda d: d.get("retainedKB"), fmt_kb),
             ("steady retained", lambda d: d.get("steadyKB"), fmt_kb),
         ]
