@@ -1,12 +1,6 @@
 local Types = require("./types")
 
-local path = "../lib/charm/"
-local charm = {
-	atom = require(`{path}atom`),
-	computed = require(`{path}computed`),
-	effect = require(`{path}effect`),
-	batch = require(`{path}store`).batch,
-} :: any
+local charm = require("../lib/charm") :: any
 
 type Node = Types.Node
 type Framework = Types.Framework
