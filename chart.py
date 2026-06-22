@@ -2,10 +2,14 @@
 import json
 import math
 import os
+import re
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 RESULTS = os.path.join(ROOT, "bench/results.json")
 MEMORY = os.path.join(ROOT, "bench/memory.json")
+WALLY = os.path.join(ROOT, "wally.toml")
+PKG_INDEX = os.path.join(ROOT, "Packages", "_Index")
+ADAPTERS = os.path.join(ROOT, "adapters")
 OUT = os.path.join(ROOT, "chart.svg")
 OUT_SMALL = os.path.join(ROOT, "chart-small.svg")
 
@@ -66,8 +70,7 @@ STYLE = (
     ".b{font-weight:700}.b6{font-weight:600}"
     ".e{text-anchor:end}.m{text-anchor:middle}"
     ".o9{opacity:.9}.o7{opacity:.72}"
-    ".lnk{text-decoration:underline;text-decoration-thickness:.6px;"
-    "text-underline-offset:2px}"
+    ".lnk{text-decoration:none;text-decoration-thickness:.6px;}"
     ".lnk:hover{fill:#11181c}"
     ".s95{font-size:9.5px}.s93{font-size:9.3px}.s85{font-size:8.5px}"
     ".s83{font-size:8.3px}.s11{font-size:11px}.s13{font-size:13px}"
@@ -105,6 +108,63 @@ def load_memory():
             return json.load(f)
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+def _wally_deps():
+    """wally.toml [dependencies] -> {alias: (scope, name, version)} (alias == adapter folder name)."""
+    deps, in_deps = {}, False
+    try:
+        with open(WALLY) as f:
+            lines = f.readlines()
+    except OSError:
+        return deps
+    for line in lines:
+        s = line.strip()
+        if s.startswith("["):
+            in_deps = s == "[dependencies]"
+        elif in_deps and "=" in s:
+            alias, _, spec = s.partition("=")
+            m = re.match(r"([^/]+)/([^@]+)@(.+)", spec.strip().strip('"'))
+            if m:
+                deps[alias.strip()] = m.groups()
+    return deps
+
+
+def _wally_repo(scope, name, version):
+    """The installed package's declared repository, else github.com/<scope>/<name>."""
+    wt = os.path.join(PKG_INDEX, f"{scope}_{name}@{version}", name, "wally.toml")
+    try:
+        with open(wt) as f:
+            for line in f:
+                m = re.match(r'\s*repository\s*=\s*"([^"]+)"', line)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return f"https://github.com/{scope}/{name}"
+
+
+def _adapter_field(fw, field):
+    """`M.<field> = "..."` from adapters/<fw>/init.luau, or None (the non-wally escape hatch)."""
+    try:
+        with open(os.path.join(ADAPTERS, fw, "init.luau")) as f:
+            m = re.search(r"\bM\." + field + r'\s*=\s*"([^"]+)"', f.read())
+            return m.group(1) if m else None
+    except OSError:
+        return None
+
+
+def framework_meta(frameworks):
+    """{fw: (label, version|None, link|None)}: for a wally dependency, the scope/name id + pinned version + repo;
+    else the adapter folder name + its M.Version / M.Link (or None)."""
+    deps, meta = _wally_deps(), {}
+    for fw in frameworks:
+        if fw in deps:
+            scope, name, version = deps[fw]
+            meta[fw] = (f"{scope}/{name}", version, _wally_repo(scope, name, version))
+        else:
+            meta[fw] = (fw, _adapter_field(fw, "Version"), _adapter_field(fw, "Link"))
+    return meta
 
 
 def esc(s):
@@ -214,6 +274,7 @@ def main():
     order, data = load()
     MEM = load_memory()
     FRAMEWORKS, COLORS, geo, complete_rows = frameworks_and_colors(order, data)
+    META = framework_meta(FRAMEWORKS)
 
     suites, cur = [], None
     for suite, test in order:
@@ -287,8 +348,22 @@ def main():
             f'<rect x="{X0}" y="{by}" width="{w:.1f}" height="{HERO_BAR_H}" '
             f'rx="4" fill="{COLORS[fw]}"{mask}/>'
         )
+        label, ver, link = META.get(fw, (fw, None, None))
+        scope, sep, name = label.partition("/")
+        name_svg = (
+            f'<tspan class="tm">{esc(scope)}/</tspan>{esc(name)}' if sep else esc(label)
+        )
+        if link:
+            name_svg = (
+                f'<a href="{esc(link)}" class="lnk" target="_blank">{name_svg}</a>'
+            )
+        ver_svg = (
+            f'<tspan class="tm s85" font-weight="500" dx="5">{esc(ver)}</tspan>'
+            if ver
+            else ""
+        )
         front.append(
-            f'<text x="{X0 - 12}" y="{cy:.1f}" class="tt b e s125">{esc(fw)}</text>'
+            f'<text x="{X0 - 12}" y="{cy:.1f}" class="tt b e s125">{name_svg}{ver_svg}</text>'
         )
         vtxt = f"{g:.2f}×"
         if w > 64:
