@@ -436,7 +436,7 @@ def main():
         front.append(
             f'<text x="{M_L}" y="{y + 14}" class="tt b s13">memory'
             f'<tspan class="tm s11" font-weight="500" dx="8">'
-            f"footprint &amp; retention · 60k-node graph · ×leanest, lower = leaner"
+            f"footprint &amp; retention · 60k-node graph · ×leanest, lower = leaner · excluded from the overall geometric mean"
             f"</tspan></text>"
         )
         y += SUITE_HEAD
