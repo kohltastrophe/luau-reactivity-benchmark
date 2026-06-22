@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - chart.py
       - wally.toml
       - adapters/**
   workflow_dispatch:
