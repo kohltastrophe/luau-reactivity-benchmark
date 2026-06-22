@@ -447,7 +447,8 @@ def memory_report(flag, names):
         "framework".ljust(w)
         + "live KB".rjust(12)
         + "bytes/node".rjust(12)
-        + "retained KB".rjust(14)
+        + "build-ret KB".rjust(14)
+        + "steady KB".rjust(12)
     )
     for name, d in rows:
         print(
@@ -455,9 +456,13 @@ def memory_report(flag, names):
             + f"{d['liveKB']:,.0f}".rjust(12)
             + f"{d['bytesPerNode']:.0f}".rjust(12)
             + f"{d['retainedKB']:,.0f}".rjust(14)
+            + f"{d.get('steadyKB', 0):,.0f}".rjust(12)
         )
     print(
-        "(retained = KB still live after cleanup()+GC vs the pre-build baseline; ~0 is ideal)"
+        "(build-ret = KB held after the first build+cleanup()+GC, incl. one-time module caches;"
+    )
+    print(
+        " steady = best-of-N incremental retain per build/teardown cycle, ~0 = no per-build leak)"
     )
     with open(os.path.join(BENCH, "memory.json"), "w") as f:
         json.dump({name: d for name, d in rows}, f, indent=2)

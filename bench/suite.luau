@@ -213,10 +213,11 @@ function M.emit(bridge: any, unit: string): string
 		local ok, st = pcall(gc.stats, bridge)
 		if ok then
 			return string.format(
-				'{"unit":"gcmem","N":%d,"liveKB":%.1f,"retainedKB":%.1f,"bytesPerNode":%.1f}',
+				'{"unit":"gcmem","N":%d,"liveKB":%.1f,"retainedKB":%.1f,"steadyKB":%.1f,"bytesPerNode":%.1f}',
 				st.N,
 				st.liveKB,
 				st.retainedKB,
+				st.steadyKB,
 				st.bytesPerNode
 			)
 		end

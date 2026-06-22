@@ -88,11 +88,17 @@ function M.collect(bridge): number
 	return best :: number
 end
 
--- memory: deterministic in a fresh process, so a single shot suffices (no fastest-of-N).
---   live     = footprint of the built graph (KB above a collected baseline)
---   retained = KB still held after cleanup()+GC; ideally ~0, a positive figure is memory the
---              framework leaks or over-retains past disposal (module-level caches can contribute)
-function M.stats(bridge): { N: number, liveKB: number, retainedKB: number, bytesPerNode: number }
+-- memory: deterministic in a fresh process. Reports the graph footprint plus two retention figures that answer different questions:
+--   liveKB     = footprint of the built graph (KB above a collected baseline)
+--   retainedKB = build-size retention: KB still held after the *first* build+cleanup()+GC in a fresh process
+--   steadyKB   = steady-state retention: best-of-N of the *incremental* KB retained by subsequent build+cleanup cycles.
+--                It isolates whether repeatedly building and disposing graphs grows the heap without bound:
+--                a genuine per-build leak stays positive every cycle, a framework that fully releases each graph reads ~0.
+--   bytesPerNode = liveKB spread over the 3N reactive nodes. NB this is "bytes per node as used through the bench bridge":
+--                  liveKB also includes the per-unit adapter wrappers ({read,write} / {read} tables + their closures) and the
+--                  user computed/effect closures, which are identical for every framework.
+function M.stats(bridge): { N: number, liveKB: number, retainedKB: number, steadyKB: number, bytesPerNode: number }
+	-- build-size retention: must be the first build in the process so one-time caches land here.
 	full_gc()
 	local base = collectgarbage("count")
 	M.build(bridge, N)
@@ -101,7 +107,25 @@ function M.stats(bridge): { N: number, liveKB: number, retainedKB: number, bytes
 	bridge.cleanup()
 	full_gc()
 	local retained = collectgarbage("count") - base
-	return { N = N, liveKB = live, retainedKB = retained, bytesPerNode = live * 1024 / (3 * N) }
+
+	-- steady-state retention: with the one-time costs now resident, measure the incremental
+	-- retain of each further cycle against a baseline taken just before that cycle's build.
+	local steady = math.huge
+	for _ = 1, REPEATS do
+		full_gc()
+		local cycleBase = collectgarbage("count")
+		M.build(bridge, N)
+		full_gc()
+		bridge.cleanup()
+		full_gc()
+		local r = collectgarbage("count") - cycleBase
+		if r < steady then
+			steady = r
+		end
+	end
+	steady = math.max(0, steady)
+
+	return { N = N, liveKB = live, retainedKB = retained, steadyKB = steady, bytesPerNode = live * 1024 / (3 * N) }
 end
 
 -- Each case returns its own fastest-of-N seconds (suite.luau just pcalls it, unlike the other

@@ -99,7 +99,7 @@ def load():
 
 
 def load_memory():
-    """bench/memory.json -> {framework: {liveKB, retainedKB, bytesPerNode}} (empty if absent)."""
+    """bench/memory.json -> {framework: {liveKB, retainedKB, steadyKB, bytesPerNode}} (empty if absent)."""
     try:
         with open(MEMORY) as f:
             return json.load(f)
@@ -433,7 +433,8 @@ def main():
     if mem_present:
         mem_rows = [
             ("footprint", lambda d: d.get("bytesPerNode"), fmt_bytes_node),
-            ("retained", lambda d: d.get("retainedKB"), fmt_kb),
+            ("build retained", lambda d: d.get("retainedKB"), fmt_kb),
+            ("steady retained", lambda d: d.get("steadyKB"), fmt_kb),
         ]
         front.append(
             f'<text x="{M_L}" y="{y + 14}" class="tt b s13">memory'
@@ -445,9 +446,7 @@ def main():
         for rowname, getval, fmt in mem_rows:
             vals = {fw: getval(MEM[fw]) for fw in mem_present}
             positives = [v for v in vals.values() if v is not None and v > 0]
-            if not positives:
-                continue
-            best = min(positives)
+            best = min(positives) if positives else None
             n = len(mem_present)
             gh = n * BAR_H + (n - 1) * BAR_GAP
             gy = y
@@ -463,12 +462,12 @@ def main():
             )
             front.append(
                 f'<text x="{X0 - 14}" y="{gy + gh / 2 + 13:.1f}" '
-                f'class="tm mono e s85">{esc(fmt(best))}</text>'
+                f'class="tm mono e s85">{esc(fmt(best if best is not None else 0))}</text>'
             )
             by = gy
             for fw in mem_present:
                 v = vals[fw]
-                if v is None or v <= 0:
+                if v is None or v <= 0 or best is None:
                     rel, w = 0.0, 2.5
                 else:
                     rel = v / best
@@ -479,7 +478,8 @@ def main():
                     f'rx="3" fill="{COLORS[fw]}"{mask}/>'
                 )
                 lbl = fmt(v) if v is not None else "n/a"
-                front.append(bar_label(by, BAR_H, fw, fmt_mult(rel), lbl, w))
+                mult = fmt_mult(rel) if best is not None else ""
+                front.append(bar_label(by, BAR_H, fw, mult, lbl, w))
                 by += BAR_H + BAR_GAP
             y = gy + gh + GROUP_PAD
         y += 8

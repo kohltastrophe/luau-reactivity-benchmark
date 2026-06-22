@@ -43,7 +43,11 @@ The `gc` suite realises an intent upstream states but never finished ("tracks ga
 
 - **gc/teardown**: wall-clock of `cleanup()` disposing the graph. An owner-tree teardown unlinks eagerly and pays here; a teardown that only drops effect handles is cheap here and defers the cost to the collector.
 - **gc/collect**: wall-clock of one full collection reclaiming the disposed graph, the cost a lazy teardown defers, roughly proportional to how much pointer-dense garbage the framework leaves.
-- **memory & retention** (a `memory` section on the chart, plus `bench/memory.json` and a console table). `count` gives a deterministic footprint (bytes/node) and a retained-after-`cleanup()` figure: KB still live once the graph is disposed and collected, where ~0 is ideal and a positive number is memory the framework leaks or over-retains. These rows normalise to the leanest framework (lower = less memory) but stay out of the timed geomean.
+- **memory & retention** (a `memory` section on the chart, plus `bench/memory.json` and a console table). `count` gives a deterministic footprint (bytes/node) and two retained-after-`cleanup()` figures, both ideally ~0:
+  - **build retained**: KB still live after the _first_ build, `cleanup()`, and collect in a fresh process. This charges a framework the one-time, module-level memory it allocates on first use (object pools, lazily built caches), a fixed cost it then carries regardless of how many graphs you build.
+  - **steady retained**: the fastest-of-N _incremental_ KB retained by repeated build/teardown cycles, once those one-time costs already sit in the baseline. It isolates unbounded growth: a genuine per-build leak stays positive every cycle, while a framework that fully releases each graph reads ~0.
+
+  These rows normalise to the leanest framework (lower = less memory) but stay out of the timed geomean.
 
 These are split because frameworks divide the cost differently: a core can be cheap to tear down but expensive to collect, or the reverse. The split is the point.
 
