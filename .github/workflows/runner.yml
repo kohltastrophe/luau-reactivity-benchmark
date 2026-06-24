@@ -57,7 +57,7 @@ jobs:
         run: python3 benchmark.py --verify
 
       - name: Run benchmark and render chart
-        run: python3 benchmark.py
+        run: python3 benchmark.py --passes 3
 
       - name: Publish charts to assets branch
         if: github.ref == 'refs/heads/main'
