@@ -1,5 +1,5 @@
 local Types = require("./types")
-local Flux = require("@self/Graph")
+local Flux = require("../lib/flux")
 
 type Node = Types.Node
 type Framework = Types.Framework
@@ -13,10 +13,10 @@ function M.signal(initial: any): Node
 	local node = Flux.signal(initial)
 	return {
 		read = function()
-			return node()
+			return node:get()
 		end,
 		write = function(v)
-			node(v)
+			node:set(v)
 		end,
 	}
 end
@@ -25,7 +25,7 @@ function M.computed(fn: () -> any): Node
 	local node = Flux.computed(fn)
 	return {
 		read = function()
-			return node()
+			return node:get()
 		end,
 	}
 end
@@ -39,20 +39,21 @@ function M.withBatch(fn: () -> ())
 	Flux.flush()
 end
 
-local dispose: any?
+local scope: any?
 
 function M.withBuild<T>(fn: () -> T): T
 	local result: any = nil
-	dispose = Flux.scope(function()
+	scope = Flux.scope(function()
 		result = fn()
+		Flux.flush()
 	end)
 	return result
 end
 
 function M.cleanup()
-	if dispose then
-		dispose()
-		dispose = nil
+	if scope then
+		scope:Destroy()
+		scope = nil
 	end
 end
 
