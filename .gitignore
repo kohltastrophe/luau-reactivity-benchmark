@@ -1,14 +1,14 @@
-# generated cores + downloads (rebuilt by benchmark.py)
-lib/
+# generated: wally downloads (made headless in place) and their @aliases (rebuilt by benchmark.py)
 Packages/
+.luaurc
 
-# generated results + per-process scratch (benchmark.py)
+# generated results (benchmark.py)
 bench/memory.json
 bench/results.json
-bench/_scratch.luau
 *.svg
 
 # tooling cruft
+graft/
 __pycache__
 .DS_Store
 wally.lock

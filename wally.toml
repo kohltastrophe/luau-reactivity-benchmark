@@ -5,8 +5,8 @@ registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 
 [dependencies]
-charm = "littensy/charm@0.11.0"
-flux = "kohltastrophe/flux@0.1.0"
-fusion = "elttob/fusion@0.3.0"
-signals = "roblox/signals@0.9.0"
-vide = "centau/vide@0.4.0"
+charm = "littensy/charm@=0.11.0"
+flux = "kohltastrophe/flux@=0.1.0"
+fusion = "elttob/fusion@=0.3.0"
+signals = "roblox/signals@=0.9.0"
+vide = "centau/vide@=0.4.1"

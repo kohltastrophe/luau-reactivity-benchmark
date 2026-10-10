@@ -1,5 +1,5 @@
 local Types = require("./types")
-local Flux = require("../lib/flux")
+local Flux = require("@flux")
 
 type Node = Types.Node
 type Framework = Types.Framework
@@ -13,10 +13,10 @@ function M.signal(initial: any): Node
 	local node = Flux.signal(initial)
 	return {
 		read = function()
-			return node:get()
+			return node()
 		end,
 		write = function(v)
-			node:set(v)
+			node(v)
 		end,
 	}
 end
@@ -25,7 +25,7 @@ function M.computed(fn: () -> any): Node
 	local node = Flux.computed(fn)
 	return {
 		read = function()
-			return node:get()
+			return node()
 		end,
 	}
 end
@@ -42,11 +42,12 @@ end
 local scope: any?
 
 function M.withBuild<T>(fn: () -> T): T
-	local result: any = nil
-	scope = Flux.scope(function()
-		result = fn()
+	local s, result = Flux.scope(function()
+		local r = fn()
 		Flux.flush()
+		return r
 	end)
+	scope = s
 	return result
 end
 

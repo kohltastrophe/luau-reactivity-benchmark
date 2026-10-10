@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
+"""Renders bench/results.json (+ bench/memory.json) to chart.svg, and the overall geomean alone to
+chart-small.svg. benchmark.py calls main() after a run; `python3 chart.py [luau flag]` re-renders
+an existing results.json."""
+
+import html
 import json
 import math
 import os
-import re
+import sys
+
+import assemble
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-RESULTS = os.path.join(ROOT, "bench/results.json")
-MEMORY = os.path.join(ROOT, "bench/memory.json")
-WALLY = os.path.join(ROOT, "wally.toml")
-PKG_INDEX = os.path.join(ROOT, "Packages", "_Index")
-ADAPTERS = os.path.join(ROOT, "adapters")
+RESULTS = os.path.join(ROOT, "bench", "results.json")
+MEMORY = os.path.join(ROOT, "bench", "memory.json")
 OUT = os.path.join(ROOT, "chart.svg")
 OUT_SMALL = os.path.join(ROOT, "chart-small.svg")
 
-CAP = float(os.environ.get("BENCH_CAP", 60))
+LUAU_VERSION = os.environ.get("LUAU_VERSION")  # stamped on the chart when the runner pins one
 
 IN_GHA = "GITHUB_ACTIONS" in os.environ
 BG_STYLE = ".bg{fill:#0000}" if IN_GHA else ".bg{fill:#fff}"
@@ -23,18 +27,20 @@ DNF_REASON = {
     "overflow": "stack overflow",
     "table-overflow": "table overflow",
     "timeout": "timeout",
+    "wrong": "wrong value",
     "error": "unexpected error",
-    "dnf": "unexpected error",
 }
 
-EXCLUDED_FROM_MEAN = {"error", "dnf"}
+# An unexpected error points at the harness, not the framework, so it's left out of a geomean; every other
+# DNF is charged its row's cap.
+EXCLUDED = {"error"}
 
 SUITE_TITLES = {
     "kairo": ("kairo", "propagation patterns"),
     "cellx": ("cellx", "interlinked layer lattice"),
     "dynamic": ("dynamic graph", "static + runtime-varying dependencies"),
     "sbench": ("sbench", "create / update throughput"),
-    "gc": ("teardown & GC", "dispose cost + full-collection reclaim time"),
+    "gc": ("teardown & GC", "dispose cost, reclaim time, and live-graph tracing time"),
 }
 
 # ---- geometry ------------------------------------------------------------------
@@ -86,19 +92,32 @@ STYLE = (
     "</style>"
 )
 
+DEFS = (
+    "<defs>" + STYLE + '<linearGradient id="capgrad" x1="0" y1="0" x2="1" y2="0">'
+    '<stop offset="0" stop-color="#fff"/>'
+    '<stop offset="0.86" stop-color="#fff"/>'
+    '<stop offset="1" stop-color="#fff" stop-opacity="0.18"/>'
+    "</linearGradient>"
+    '<mask id="capfade" maskContentUnits="objectBoundingBox">'
+    '<rect width="1" height="1" fill="url(#capgrad)"/></mask>'
+    '<pattern id="dnf" width="6" height="6" patternUnits="userSpaceOnUse" '
+    'patternTransform="rotate(45)"><rect width="6" height="6" fill="#f6e4e3"/>'
+    '<line x1="0" y1="0" x2="0" y2="6" stroke="#d99b98" stroke-width="2"/>'
+    "</pattern></defs>"
+)
+
+
+# ---- data ------------------------------------------------------------------------
+
 
 def load():
+    """bench/results.json -> ([(suite, test)] in run order, {(suite, test): {framework: row}})."""
     with open(RESULTS) as f:
         rows = json.load(f)
-    order, seen, data = [], set(), {}
+    data = {}
     for r in rows:
-        key = (r["suite"], r["test"])
-        if key not in seen:
-            seen.add(key)
-            order.append(key)
-            data[key] = {}
-        data[key][r["framework"]] = r
-    return order, data
+        data.setdefault((r["suite"], r["test"]), {})[r["framework"]] = r
+    return list(data), data
 
 
 def load_memory():
@@ -110,69 +129,39 @@ def load_memory():
         return {}
 
 
-def _wally_deps():
-    """wally.toml [dependencies] -> {alias: (scope, name, version)} (alias == adapter folder name)."""
-    deps, in_deps = {}, False
-    try:
-        with open(WALLY) as f:
-            lines = f.readlines()
-    except OSError:
-        return deps
-    for line in lines:
-        s = line.strip()
-        if s.startswith("["):
-            in_deps = s == "[dependencies]"
-        elif in_deps and "=" in s:
-            alias, _, spec = s.partition("=")
-            m = re.match(r"([^/]+)/([^@]+)@(.+)", spec.strip().strip('"'))
-            if m:
-                deps[alias.strip()] = m.groups()
-    return deps
+def fastest(group):
+    """A row's fastest finish ({framework: row} -> seconds), or None if no framework finished it."""
+    return min((r["seconds"] for r in group.values() if r["seconds"] is not None), default=None)
 
 
-def _wally_repo(scope, name, version):
-    """The installed package's declared repository, else github.com/<scope>/<name>."""
-    wt = os.path.join(PKG_INDEX, f"{scope}_{name}@{version}", name, "wally.toml")
-    try:
-        with open(wt) as f:
-            for line in f:
-                m = re.match(r'\s*repository\s*=\s*"([^"]+)"', line)
-                if m:
-                    return m.group(1)
-    except OSError:
-        pass
-    return f"https://github.com/{scope}/{name}"
+def geomeans(order, data):
+    """Each framework's geometric mean of time relative to every row's fastest finisher, over the rows at
+    least one framework finished, a DNF charged its row's cap. Returns ({framework: geomean or None}, rows)."""
+    logs = {fw: [] for key in order for fw in data[key]}
+    counted = 0
+    for key in order:
+        best = fastest(data[key])
+        if best is None:
+            continue
+        counted += 1
+        for fw, r in data[key].items():
+            if r["seconds"] is not None:
+                logs[fw].append(math.log(r["seconds"] / best))
+            elif r["status"] not in EXCLUDED:
+                logs[fw].append(math.log(r["cap"] / best))
+    return {fw: math.exp(sum(xs) / len(xs)) if xs else None for fw, xs in logs.items()}, counted
 
 
-def _adapter_field(fw, field):
-    """`M.<field> = "..."` from adapters/<fw>/init.luau, or None (the non-wally escape hatch)."""
-    try:
-        with open(os.path.join(ADAPTERS, fw, "init.luau")) as f:
-            m = re.search(r"\bM\." + field + r'\s*=\s*"([^"]+)"', f.read())
-            return m.group(1) if m else None
-    except OSError:
-        return None
+def ranked(geo):
+    """Frameworks fastest geomean first, any without one last."""
+    return sorted(geo, key=lambda fw: (geo[fw] is None, geo[fw] or 0.0))
 
 
-def framework_meta(frameworks):
-    """{fw: (label, version|None, link|None)}: for a wally dependency, the scope/name id + pinned version + repo;
-    else the adapter folder name + its M.Version / M.Link (or None)."""
-    deps, meta = _wally_deps(), {}
-    for fw in frameworks:
-        if fw in deps:
-            scope, name, version = deps[fw]
-            meta[fw] = (f"{scope}/{name}", version, _wally_repo(scope, name, version))
-        else:
-            meta[fw] = (fw, _adapter_field(fw, "Version"), _adapter_field(fw, "Link"))
-    return meta
+# ---- formatting ------------------------------------------------------------------
 
 
 def esc(s):
-    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def dnf_reason(status):
-    return DNF_REASON.get(status, status or "unexpected error")
+    return html.escape(str(s))
 
 
 def xrel(v):
@@ -194,13 +183,19 @@ def fmt_ms(secs):
     return f"{ms:.3f} ms"
 
 
-def fmt_bytes_node(b):
-    return f"{b:.0f} B"
+def fmt_evals(n):
+    if n >= 1e6:
+        return f"{n / 1e6:.1f}M evals"
+    if n >= 1e3:
+        return f"{n / 1e3:.1f}k evals"
+    return f"{n:.0f} evals"
 
 
 def fmt_kb(kb):
     if kb >= 1024:
         return f"{kb / 1024:.1f} MB"
+    if kb < 10:
+        return f"{kb:.1f} KB"
     return f"{kb:.0f} KB"
 
 
@@ -229,59 +224,33 @@ def rainbow(n, L=0.6, C=0.2):
     return [_oklch_to_hex(L, C, 360 * (i / n)) for i in range(n)]
 
 
-def frameworks_and_colors(order, data):
-    seen = []
-    for key in order:
-        for fw in data[key]:
-            if fw not in seen:
-                seen.append(fw)
-    rels = {fw: [] for fw in seen}
-    rows_counted = 0
-    for key in order:
-        group = data[key]
-        done = [
-            group[fw]["seconds"]
-            for fw in seen
-            if fw in group and group[fw].get("seconds") is not None
-        ]
-        if not done:
-            continue  # no framework finished this row; nothing to normalise against
-        rows_counted += 1
-        best = min(done)
-        for fw in seen:
-            r = group.get(fw)
-            if r is None:
-                continue  # framework not present in this row at all
-            secs = r.get("seconds")
-            if secs is not None:
-                rels[fw].append(secs / best)
-            elif r.get("status") not in EXCLUDED_FROM_MEAN:
-                cap = r.get("cap")
-                rels[fw].append((cap if cap is not None else CAP) / best)
-            # else: a genuine unexpected error -> left out of this framework's mean
-    geo = {
-        fw: (math.exp(sum(map(math.log, xs)) / len(xs)) if xs else None)
-        for fw, xs in rels.items()
-    }
-    frameworks = sorted(
-        seen, key=lambda fw: (geo[fw] is None, geo[fw] or 0.0, seen.index(fw))
+def document(body, h):
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{h}" '
+        f'viewBox="0 0 {W} {h}" role="img" '
+        f'aria-label="Luau reactivity benchmark results, lower is faster">'
+        + DEFS
+        + f'<rect x="0" y="0" width="{W}" height="{h}" class="bg"/>'
+        + body
+        + "</svg>\n"
     )
-    colors = dict(zip(frameworks, rainbow(len(frameworks))))
-    return frameworks, colors, geo, rows_counted
 
 
-def main():
+# ---- render ----------------------------------------------------------------------
+
+
+def main(flag="-O2"):
     order, data = load()
-    MEM = load_memory()
-    FRAMEWORKS, COLORS, geo, complete_rows = frameworks_and_colors(order, data)
-    META = framework_meta(FRAMEWORKS)
+    mem = load_memory()
+    geo, complete_rows = geomeans(order, data)
+    frameworks = ranked(geo)
+    colors = dict(zip(frameworks, rainbow(len(frameworks))))
+    # the per-run deadline: the largest cap (kairo's is per iteration)
+    charge = max(r["cap"] for g in data.values() for r in g.values())
 
-    suites, cur = [], None
-    for suite, test in order:
-        if suite != cur:
-            suites.append([suite, []])
-            cur = suite
-        suites[-1][1].append((suite, test))
+    suites = {}
+    for key in order:
+        suites.setdefault(key[0], []).append(key)
 
     front, behind = [], []
 
@@ -290,38 +259,99 @@ def main():
         f'<text x="{M_L}" y="{16 + M_T}" font-size="23" font-weight="800" class="tt">'
         "Luau reactivity benchmark</text>"
     )
+    luau = f"headless luau {esc(LUAU_VERSION)} " if LUAU_VERSION else "headless luau "
     front.append(
-        f'<text x="{M_L}" y="{37 + M_T}" class="tm s125">headless luau <tspan class="mono">-O2</tspan>'
-        "· per-bench process isolation · normalised per row to the fastest (shorter = faster)</text>"
+        f'<text x="{M_L}" y="{37 + M_T}" class="tm s125">{luau}<tspan class="mono">{esc(flag)}</tspan>'
+        " · per-bench process isolation · normalised per row to the fastest (shorter = faster)</text>"
     )
 
     # ---- shared x-axis: one 0-10× scale for both the hero and the detail --------
     y = 60 + M_T
     for t in TICKS:
-        tx = xrel(t)
-        front.append(f'<text x="{tx:.1f}" y="{y}" class="tm mono m s95">{t}×</text>')
+        front.append(f'<text x="{xrel(t):.1f}" y="{y}" class="tm mono m s95">{t}×</text>')
     front.append(
-        f'<text x="{X0 - 14}" y="{y}" class="tm e s95">'
-        f"relative time, lower is faster →</text>"
+        f'<text x="{X0 - 14}" y="{y}" class="tm e s95">relative time, lower is faster →</text>'
     )
     axis_top = y + 6
 
-    def bar_label(by, bh, fw, mult, ms, w):
-        # framework + multiple (+ ms): inside the bar when wide, else just past it
-        cy = by + bh / 2 + 3.3
-        if w > 132:
-            return (
+    def footer(total_h, detail):
+        noise = "noise is about ±10% even with fastest-of-N and several passes, so treat smaller gaps as ties."
+        last = (
+            f"evals = computed + effect bodies run per kairo iteration / cellx propagation / dynamic run · run-to-run {noise}"
+            if detail
+            else f"Run-to-run {noise}"
+        )
+        return (
+            f'<text x="{M_L}" y="{total_h - 39}" class="tm s95">'
+            f'Port of <a href="https://github.com/milomg/js-reactivity-benchmark" class="lnk">'
+            "milomg/js-reactivity-benchmark</a> · normalised per row to the fastest "
+            "framework (1.0×, shorter = faster) · process-isolated, upstream's warm-ups and fastest-of-N (cellx: mean).</text>"
+            f'<text x="{M_L}" y="{total_h - 25}" class="tm s95">'
+            f"Faded bars exceed {int(MAX_REL)}× (true multiple labelled) · a DNF is a run past the "
+            f"{charge:g}s deadline and is charged exactly that run time in the geomean on every row "
+            "(an unexpected error is excluded instead).</text>"
+            f'<text x="{M_L}" y="{total_h - 11}" class="tm s95">{last}</text>'
+        )
+
+    def bar(by, fw, rel, h=BAR_H, rx=3):
+        w = max(2.5, xrel(rel) - X0)
+        mask = ' mask="url(#capfade)"' if rel > MAX_REL else ""
+        front.append(
+            f'<rect x="{X0}" y="{by}" width="{w:.1f}" height="{h}" '
+            f'rx="{rx}" fill="{colors[fw]}"{mask}/>'
+        )
+        return w
+
+    def bar_label(by, fw, mult, amount, w, evals=None):
+        # framework + multiple (+ amount, + node evaluations): inside the bar when wide, else past it
+        cy = by + BAR_H / 2 + 3.3
+        extra = f" · {fmt_evals(evals)}" if evals else ""
+        text = f"{fw} {mult} {amount}{extra}" if mult else f"{fw} {amount}{extra}"
+        # ~4.3px per character across the label's mixed 9.3/8.3px runs, plus the side padding
+        if w > 18 + 4.3 * len(text):
+            front.append(
                 f'<text x="{X0 + 9}" y="{cy:.1f}" class="tw s93">'
                 f'<tspan class="o9">{esc(fw)}</tspan>'
-                f'<tspan class="b" dx="5">{mult}</tspan>'
-                f'<tspan class="o7 s83" dx="5">{ms}</tspan></text>'
+                + (f'<tspan class="b" dx="5">{mult}</tspan>' if mult else "")
+                + f'<tspan class="o7 s83" dx="5">{amount}{extra}</tspan></text>'
             )
-        return (
-            f'<text x="{X0 + w + 7:.1f}" y="{cy:.1f}" class="tl s93">'
-            f"<tspan>{esc(fw)}</tspan>"
-            f'<tspan class="tt b" dx="5">{mult}</tspan>'
-            f'<tspan class="tm s83" dx="5">{ms}</tspan></text>'
+        else:
+            front.append(
+                f'<text x="{X0 + w + 7:.1f}" y="{cy:.1f}" class="tl s93">'
+                f"<tspan>{esc(fw)}</tspan>"
+                + (f'<tspan class="tt b" dx="5">{mult}</tspan>' if mult else "")
+                + f'<tspan class="tm s83" dx="5">{amount}{extra}</tspan></text>'
+            )
+
+    gi = 0  # global group index, for zebra striping
+
+    def group_head(gy, n, label, baseline):
+        # zebra stripe, then the row label over this row's 1.0× baseline
+        nonlocal gi
+        gh = n * BAR_H + (n - 1) * BAR_GAP
+        if gi % 2 == 1:
+            behind.append(
+                f'<rect x="{M_L}" y="{gy - 4:.1f}" width="{W - M_L - M_R}" '
+                f'height="{gh + 8:.1f}" rx="4" class="zebra"/>'
+            )
+        gi += 1
+        front.append(
+            f'<text x="{X0 - 14}" y="{gy + gh / 2 + 1:.1f}" '
+            f'class="tl mono e b6 s11">{esc(label)}</text>'
         )
+        if baseline:
+            front.append(
+                f'<text x="{X0 - 14}" y="{gy + gh / 2 + 13:.1f}" '
+                f'class="tm mono e s85">{esc(baseline)}</text>'
+            )
+        return gh
+
+    def section_head(y, title, sub):
+        front.append(
+            f'<text x="{M_L}" y="{y + 14}" class="tt b s13">{esc(title)}'
+            f'<tspan class="tm s11" font-weight="500" dx="8">{esc(sub)}</tspan></text>'
+        )
+        return y + SUITE_HEAD
 
     # ---- hero: overall geometric mean (also the legend) ------------------------
     y = axis_top + 18
@@ -331,288 +361,122 @@ def main():
     )
     front.append(
         f'<text x="{X1}" y="{y}" class="tm e" font-size="10">'
-        f"over {complete_rows} of {len(order)} rows · DNF charged its per-bench time cap</text>"
+        f"over {complete_rows} of {len(order)} rows · DNF charged the {charge:g}s per-run deadline</text>"
     )
     y += 12
 
-    for fw in FRAMEWORKS:
+    for fw in frameworks:
         g = geo[fw]
         if g is None:
             continue
-        by = y
-        capped = g > MAX_REL
-        w = max(2.5, xrel(g) - X0)
-        mask = ' mask="url(#capfade)"' if capped else ""
-        cy = by + HERO_BAR_H / 2 + 4.5
-        front.append(
-            f'<rect x="{X0}" y="{by}" width="{w:.1f}" height="{HERO_BAR_H}" '
-            f'rx="4" fill="{COLORS[fw]}"{mask}/>'
-        )
-        label, ver, link = META.get(fw, (fw, None, None))
+        w = bar(y, fw, g, HERO_BAR_H, 4)
+        cy = y + HERO_BAR_H / 2 + 4.5
+        label, ver, link = assemble.package_meta(fw) or (fw, None, None)
         scope, sep, name = label.partition("/")
-        name_svg = (
-            f'<tspan class="tm">{esc(scope)}/</tspan>{esc(name)}' if sep else esc(label)
-        )
+        name_svg = f'<tspan class="tm">{esc(scope)}/</tspan>{esc(name)}' if sep else esc(label)
         if link:
-            name_svg = (
-                f'<a href="{esc(link)}" class="lnk" target="_blank">{name_svg}</a>'
-            )
+            name_svg = f'<a href="{esc(link)}" class="lnk" target="_blank">{name_svg}</a>'
         ver_svg = (
-            f'<tspan class="tm s85" font-weight="500" dx="5">{esc(ver)}</tspan>'
-            if ver
-            else ""
+            f'<tspan class="tm s85" font-weight="500" dx="5">{esc(ver)}</tspan>' if ver else ""
         )
         front.append(
             f'<text x="{X0 - 12}" y="{cy:.1f}" class="tt b e s125">{name_svg}{ver_svg}</text>'
         )
-        vtxt = f"{g:.2f}×"
         if w > 64:
-            front.append(
-                f'<text x="{X0 + 10}" y="{cy:.1f}" class="tw b s125">{vtxt}</text>'
-            )
+            front.append(f'<text x="{X0 + 10}" y="{cy:.1f}" class="tw b s125">{g:.2f}×</text>')
         else:
             front.append(
-                f'<text x="{X0 + w + 8:.1f}" y="{cy:.1f}" class="tt b s125">{vtxt}'
+                f'<text x="{X0 + w + 8:.1f}" y="{cy:.1f}" class="tt b s125">{g:.2f}×'
                 f'<tspan class="tm b6">  fastest</tspan></text>'
             )
         y += HERO_BAR_H + HERO_GAP
 
-    # ---- small output -----------------------------------------------------------
-
-    total_h = y + 46
-
-    front.append(
-        f'<text x="{M_L}" y="{total_h - 25}" class="tm s95">'
-        f'Port of <a href="https://github.com/milomg/js-reactivity-benchmark" class="lnk">milomg/js-reactivity-benchmark</a> · normalised per row to the fastest '
-        f"framework (1.0×, shorter = faster) · process-isolated, fastest-of-N per run.</text>"
-        f'<text x="{M_L}" y="{total_h - 11}" class="tm s95">'
-        f"Faded bars exceed {int(MAX_REL)}× (true multiple labelled) · a DNF is charged its "
-        f"benchmark's time budget (per-bench cap, else the {int(CAP)}s process cap) in the geomean "
-        f"(an unexpected error is excluded instead).</text>"
-    )
-
-    defs = (
-        "<defs>" + STYLE + '<linearGradient id="capgrad" x1="0" y1="0" x2="1" y2="0">'
-        '<stop offset="0" stop-color="#fff"/>'
-        '<stop offset="0.86" stop-color="#fff"/>'
-        '<stop offset="1" stop-color="#fff" stop-opacity="0.18"/>'
-        "</linearGradient>"
-        '<mask id="capfade" maskContentUnits="objectBoundingBox">'
-        '<rect width="1" height="1" fill="url(#capgrad)"/></mask>'
-        '<pattern id="dnf" width="6" height="6" patternUnits="userSpaceOnUse" '
-        'patternTransform="rotate(45)"><rect width="6" height="6" fill="#f6e4e3"/>'
-        '<line x1="0" y1="0" x2="0" y2="6" stroke="#d99b98" stroke-width="2"/>'
-        "</pattern></defs>"
-    )
-    bg = f'<rect x="0" y="0" width="{W}" height="{total_h}" class="bg"/>'
-
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{total_h}" '
-        f'viewBox="0 0 {W} {total_h}" role="img" '
-        f'aria-label="Luau reactivity benchmark results, lower is faster">'
-        + defs
-        + bg
-        + "".join(behind)
-        + "".join(front)
-        + "</svg>\n"
-    )
-
+    # ---- small output: the hero alone -----------------------------------------
+    small_h = y + 60
     with open(OUT_SMALL, "w") as f:
-        f.write(svg)
-
-    front.pop()
-
-    # ---- detail plot -----------------------------------------------------------
-    y += 12
-    front.append(
-        f'<text x="{M_L}" y="{y}" class="tl b s11" '
-        f'letter-spacing="0.5">PER-BENCHMARK</text>'
-    )
-    y += 12
+        f.write(document("".join(front) + footer(small_h, False), small_h))
 
     # ---- detail: per-suite, per-benchmark groups -------------------------------
-    gi = 0  # global group index, for zebra striping
-    for suite, tests in suites:
-        title, sub = SUITE_TITLES.get(suite, (suite, ""))
-        front.append(
-            f'<text x="{M_L}" y="{y + 14}" class="tt b s13">{esc(title)}'
-            f'<tspan class="tm s11" font-weight="500" dx="8">{esc(sub)}'
-            f"</tspan></text>"
-        )
-        y += SUITE_HEAD
+    y += 12
+    front.append(
+        f'<text x="{M_L}" y="{y}" class="tl b s11" letter-spacing="0.5">PER-BENCHMARK</text>'
+    )
+    y += 12
 
-        for key in tests:
+    for suite, keys in suites.items():
+        y = section_head(y, *SUITE_TITLES.get(suite, (suite, "")))
+        for key in keys:
             group = data[key]
-            test = key[1]
-            present = [fw for fw in FRAMEWORKS if fw in group]
-            times = [
-                group[fw]["seconds"]
-                for fw in present
-                if group[fw].get("seconds") is not None
-            ]
-            best = min(times) if times else None
-            n = len(present)
-            gh = n * BAR_H + (n - 1) * BAR_GAP
-            gy = y
-
-            if gi % 2 == 1:
-                behind.append(
-                    f'<rect x="{M_L}" y="{gy - 4:.1f}" width="{W - M_L - M_R}" '
-                    f'height="{gh + 8:.1f}" rx="4" class="zebra"/>'
-                )
-            gi += 1
-
-            # row label + the fastest framework's absolute time (this row's 1.0× baseline),
-            base_ms = fmt_ms(best) if best is not None else ""
-            front.append(
-                f'<text x="{X0 - 14}" y="{gy + gh / 2 + 1:.1f}" '
-                f'class="tl mono e b6 s11">{esc(test)}</text>'
-            )
-            if base_ms:
-                front.append(
-                    f'<text x="{X0 - 14}" y="{gy + gh / 2 + 13:.1f}" '
-                    f'class="tm mono e s85">{esc(base_ms)}</text>'
-                )
-
-            by = gy
+            present = [fw for fw in frameworks if fw in group]
+            best = fastest(group)
+            gh = group_head(y, len(present), key[1], fmt_ms(best) if best is not None else "")
+            by = y
             for fw in present:
-                secs = group[fw].get("seconds")
-                if secs is None:
-                    # DNF
-                    reason = dnf_reason(group[fw].get("status"))
+                r = group[fw]
+                if r["seconds"] is None:
+                    reason = DNF_REASON.get(r["status"], r["status"])
                     front.append(
                         f'<rect x="{X0}" y="{by}" width="{PLOT_W}" height="{BAR_H}" '
                         f'rx="3" class="dnfr"/>'
-                    )
-                    front.append(
                         f'<text x="{X0 + 9}" y="{by + BAR_H - 3.8:.1f}" '
                         f'class="dnf s93">{esc(fw)} · DNF ({esc(reason)})</text>'
                     )
                 else:
-                    rel = secs / best if best else 1.0
-                    w = max(2.5, xrel(rel) - X0)
-                    mask = ' mask="url(#capfade)"' if rel > MAX_REL else ""
-                    front.append(
-                        f'<rect x="{X0}" y="{by}" width="{w:.1f}" height="{BAR_H}" '
-                        f'rx="3" fill="{COLORS[fw]}"{mask}/>'
-                    )
-                    front.append(
-                        bar_label(by, BAR_H, fw, fmt_mult(rel), fmt_ms(secs), w)
-                    )
+                    rel = r["seconds"] / best
+                    w = bar(by, fw, rel)
+                    bar_label(by, fw, fmt_mult(rel), fmt_ms(r["seconds"]), w, r.get("evals"))
                 by += BAR_H + BAR_GAP
-            y = gy + gh + GROUP_PAD
+            y += gh + GROUP_PAD
         y += 8  # gap between suites
 
     # ---- memory: footprint + retention from bench/memory.json ------------------
-    mem_present = [fw for fw in FRAMEWORKS if fw in MEM] if MEM else []
+    mem_present = [fw for fw in frameworks if fw in mem]
     if mem_present:
-        mem_rows = [
-            ("node footprint", lambda d: d.get("bytesPerNode"), fmt_bytes_node),
-            ("build retained", lambda d: d.get("retainedKB"), fmt_kb),
-            ("steady retained", lambda d: d.get("steadyKB"), fmt_kb),
-        ]
-        front.append(
-            f'<text x="{M_L}" y="{y + 14}" class="tt b s13">memory'
-            f'<tspan class="tm s11" font-weight="500" dx="8">'
-            f"footprint &amp; retention · 60k-node graph · ×leanest, lower = leaner · excluded from the overall geometric mean"
-            f"</tspan></text>"
+        y = section_head(
+            y,
+            "memory",
+            f"{3 * mem[mem_present[0]]['N'] // 1000}k-node graph · footprint ×leanest, retention in KB (~0 = fully released) · "
+            "excluded from the overall geometric mean",
         )
-        y += SUITE_HEAD
-        for rowname, getval, fmt in mem_rows:
-            vals = {fw: getval(MEM[fw]) for fw in mem_present}
-            positives = [v for v in vals.values() if v is not None and v > 0]
-            best = min(positives) if positives else None
-            n = len(mem_present)
-            gh = n * BAR_H + (n - 1) * BAR_GAP
-            gy = y
-            if gi % 2 == 1:
-                behind.append(
-                    f'<rect x="{M_L}" y="{gy - 4:.1f}" width="{W - M_L - M_R}" '
-                    f'height="{gh + 8:.1f}" rx="4" class="zebra"/>'
-                )
-            gi += 1
-            front.append(
-                f'<text x="{X0 - 14}" y="{gy + gh / 2 + 1:.1f}" '
-                f'class="tl mono e b6 s11">{esc(rowname)}</text>'
+        # retention sits near zero and moves in whole-KB steps (and table-capacity jumps), so a
+        # multiple of the leanest would be noise: those rows show the absolute figure only
+        for rowname, field, fmt, relative in (
+            ("node footprint", "bytesPerNode", lambda b: f"{b:.0f} B", True),
+            ("build retained", "retainedKB", fmt_kb, False),
+            ("steady retained", "steadyKB", fmt_kb, False),
+        ):
+            vals = {fw: mem[fw].get(field) for fw in mem_present}
+            best = (
+                min((v for v in vals.values() if v is not None and v > 0), default=None)
+                if relative
+                else None
             )
-            front.append(
-                f'<text x="{X0 - 14}" y="{gy + gh / 2 + 13:.1f}" '
-                f'class="tm mono e s85">{esc(fmt(best if best is not None else 0))}</text>'
-            )
-            by = gy
+            gh = group_head(y, len(mem_present), rowname, fmt(best) if best else "")
+            by = y
             for fw in mem_present:
                 v = vals[fw]
-                if v is None or v <= 0 or best is None:
-                    rel, w = 0.0, 2.5
-                else:
-                    rel = v / best
-                    w = max(2.5, xrel(rel) - X0)
-                mask = ' mask="url(#capfade)"' if rel > MAX_REL else ""
-                front.append(
-                    f'<rect x="{X0}" y="{by}" width="{w:.1f}" height="{BAR_H}" '
-                    f'rx="3" fill="{COLORS[fw]}"{mask}/>'
+                rel = v / best if v and v > 0 and best else 0.0
+                w = bar(by, fw, rel)
+                bar_label(
+                    by, fw, fmt_mult(rel) if best else "", fmt(v) if v is not None else "n/a", w
                 )
-                lbl = fmt(v) if v is not None else "n/a"
-                mult = fmt_mult(rel) if best is not None else ""
-                front.append(bar_label(by, BAR_H, fw, mult, lbl, w))
                 by += BAR_H + BAR_GAP
-            y = gy + gh + GROUP_PAD
+            y += gh + GROUP_PAD
         y += 8
-
-    detail_bottom = y
 
     # ---- gridlines (drawn behind everything in the detail band) ----------------
     for t in TICKS:
         tx = xrel(t)
-        cls = "gridkey" if t == 1 else "grid"
         behind.append(
-            f'<line x1="{tx:.1f}" y1="{axis_top + 2}" x2="{tx:.1f}" '
-            f'y2="{detail_bottom - 4:.1f}" class="{cls}"/>'
+            f'<line x1="{tx:.1f}" y1="{axis_top + 2}" x2="{tx:.1f}" y2="{y - 4:.1f}" '
+            f'class="{"gridkey" if t == 1 else "grid"}"/>'
         )
 
-    total_h = detail_bottom + 46
-
-    # ---- footer (two lines so nothing is clipped on either axis) ---------------
-    front.append(
-        f'<text x="{M_L}" y="{total_h - 25}" class="tm s95">'
-        f'Port of <a href="https://github.com/milomg/js-reactivity-benchmark" class="lnk">milomg/js-reactivity-benchmark</a> · normalised per row to the fastest '
-        f"framework (1.0×, shorter = faster) · process-isolated, fastest-of-N per run.</text>"
-        f'<text x="{M_L}" y="{total_h - 11}" class="tm s95">'
-        f"Faded bars exceed {int(MAX_REL)}× (true multiple labelled) · a DNF is charged its "
-        f"benchmark's time budget (per-bench cap, else the {int(CAP)}s process cap) in the geomean "
-        f"(an unexpected error is excluded instead).</text>"
-    )
-
-    defs = (
-        "<defs>" + STYLE + '<linearGradient id="capgrad" x1="0" y1="0" x2="1" y2="0">'
-        '<stop offset="0" stop-color="#fff"/>'
-        '<stop offset="0.86" stop-color="#fff"/>'
-        '<stop offset="1" stop-color="#fff" stop-opacity="0.18"/>'
-        "</linearGradient>"
-        '<mask id="capfade" maskContentUnits="objectBoundingBox">'
-        '<rect width="1" height="1" fill="url(#capgrad)"/></mask>'
-        '<pattern id="dnf" width="6" height="6" patternUnits="userSpaceOnUse" '
-        'patternTransform="rotate(45)"><rect width="6" height="6" fill="#f6e4e3"/>'
-        '<line x1="0" y1="0" x2="0" y2="6" stroke="#d99b98" stroke-width="2"/>'
-        "</pattern></defs>"
-    )
-    bg = f'<rect x="0" y="0" width="{W}" height="{total_h}" class="bg"/>'
-
-    svg = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{total_h}" '
-        f'viewBox="0 0 {W} {total_h}" role="img" '
-        f'aria-label="Luau reactivity benchmark results, lower is faster">'
-        + defs
-        + bg
-        + "".join(behind)
-        + "".join(front)
-        + "</svg>\n"
-    )
-
+    total_h = y + 60
     with open(OUT, "w") as f:
-        f.write(svg)
+        f.write(document("".join(behind) + "".join(front) + footer(total_h, True), total_h))
     print(f"wrote {OUT} ({W}x{total_h}px, {len(order)} benchmarks)")
 
 
 if __name__ == "__main__":
-    main()
+    main(*sys.argv[1:2])

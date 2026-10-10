@@ -4,10 +4,16 @@ on:
   push:
     branches: [main]
     paths:
+      - assemble.py
+      - benchmark.py
       - chart.py
       - wally.toml
       - adapters/**
+      - bench/**
   workflow_dispatch:
+
+env:
+  LUAU_VERSION: "0.737"
 
 concurrency:
   group: update-chart
@@ -19,7 +25,7 @@ permissions:
 jobs:
   update-chart:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -33,12 +39,11 @@ jobs:
       - name: Install luau
         run: |
           set -euo pipefail
-          curl -fsSL -o /tmp/luau.zip "https://github.com/luau-lang/luau/releases/latest/download/luau-ubuntu.zip"
+          curl -fsSL -o /tmp/luau.zip "https://github.com/luau-lang/luau/releases/download/${LUAU_VERSION}/luau-ubuntu.zip"
           unzip -o /tmp/luau.zip -d /tmp/luau-bin
           chmod +x /tmp/luau-bin/luau
           sudo mv /tmp/luau-bin/luau /usr/local/bin/luau
           rm -rf /tmp/luau.zip /tmp/luau-bin
-          luau --help | grep -q -- --codegen
 
       - name: Install wally
         run: |
@@ -63,9 +68,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          test -f chart.svg
-          test -f chart-small.svg
-
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 

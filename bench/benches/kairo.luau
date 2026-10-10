@@ -1,58 +1,67 @@
 -- Port of the kairo suite from milomg/js-reactivity-benchmark (packages/core/src/benches/kairo/*).
+--
+-- Each case builds upstream's graph and returns its iterator, with upstream's bodies and value assertions
+-- as-is, except that its exact effect count is a floor: a framework that isn't glitch-free legitimately
+-- re-runs more, while an adapter whose effects never re-run (which value asserts alone can't see, since reads
+-- pull lazily) still fails. The cases upstream doesn't count (mux, mol) carry an `effects` floor checked
+-- through the counting bridge.
+
+local harness = require("../harness")
+
+local function expect(cond: boolean, what: string)
+	if not cond then
+		harness.fail("wrong", what)
+	end
+end
 
 local function busy()
 	local a = 0
 	for _ = 1, 100 do
 		a += 1
 	end
-	return a
 end
 
-local function avoidablePropagation(bridge): (boolean?) -> ()
+local function avoidablePropagation(bridge): () -> ()
 	local head = bridge.signal(0)
-	local c1 = bridge.computed(function()
+	local computed1 = bridge.computed(function()
 		return head.read()
 	end)
-	local c2 = bridge.computed(function()
-		c1.read()
+	local computed2 = bridge.computed(function()
+		computed1.read()
 		return 0
 	end)
-	local c3 = bridge.computed(function()
-		busy()
-		return c2.read() + 1
+	local computed3 = bridge.computed(function()
+		busy() -- heavy computation
+		return computed2.read() + 1
 	end)
-	local c4 = bridge.computed(function()
-		return c3.read() + 2
+	local computed4 = bridge.computed(function()
+		return computed3.read() + 2
 	end)
-	local c5 = bridge.computed(function()
-		return c4.read() + 3
+	local computed5 = bridge.computed(function()
+		return computed4.read() + 3
 	end)
 	bridge.effect(function()
-		c5.read()
-		busy()
+		computed5.read()
+		busy() -- heavy side effect
 	end)
-	return function(verify: boolean?)
+	return function()
 		bridge.withBatch(function()
 			head.write(1)
 		end)
-		if verify then
-			assert(c5.read() == 6, "avoidable c5 baseline")
-		end
+		expect(computed5.read() == 6, "avoidable baseline")
 		for i = 0, 999 do
 			bridge.withBatch(function()
 				head.write(i)
 			end)
-			local v = c5.read()
-			if verify then
-				assert(v == 6, "avoidable c5")
-			end
+			expect(computed5.read() == 6, "avoidable")
 		end
 	end
 end
 
-local function broadPropagation(bridge): (boolean?) -> ()
+local function broadPropagation(bridge): () -> ()
 	local head = bridge.signal(0)
-	local last
+	local last = head
+	local callCounter = { count = 0 }
 	for i = 0, 49 do
 		local current = bridge.computed(function()
 			return head.read() + i
@@ -62,26 +71,27 @@ local function broadPropagation(bridge): (boolean?) -> ()
 		end)
 		bridge.effect(function()
 			current2.read()
+			callCounter.count += 1
 		end)
 		last = current2
 	end
-	return function(verify: boolean?)
+	return function()
 		bridge.withBatch(function()
 			head.write(1)
 		end)
+		local atleast = 50 * 50
+		callCounter.count = 0
 		for i = 0, 49 do
 			bridge.withBatch(function()
 				head.write(i)
 			end)
-			local v = last.read()
-			if verify then
-				assert(v == i + 50, "broad last")
-			end
+			expect(last.read() == i + 50, "broad last")
 		end
+		expect(callCounter.count >= atleast, `broad: effects ran {callCounter.count} < {atleast} times`)
 	end
 end
 
-local function deepPropagation(bridge): (boolean?) -> ()
+local function deepPropagation(bridge): () -> ()
 	local len = 50
 	local head = bridge.signal(0)
 	local current = head
@@ -91,26 +101,29 @@ local function deepPropagation(bridge): (boolean?) -> ()
 			return c.read() + 1
 		end)
 	end
+	local callCounter = { count = 0 }
 	bridge.effect(function()
 		current.read()
+		callCounter.count += 1
 	end)
-	return function(verify: boolean?)
+	local iter = 50
+	return function()
 		bridge.withBatch(function()
 			head.write(1)
 		end)
-		for i = 0, 49 do
+		local atleast = iter
+		callCounter.count = 0
+		for i = 0, iter - 1 do
 			bridge.withBatch(function()
 				head.write(i)
 			end)
-			local v = current.read()
-			if verify then
-				assert(v == len + i, "deep leaf")
-			end
+			expect(current.read() == len + i, "deep leaf")
 		end
+		expect(callCounter.count >= atleast, `deep: effect ran {callCounter.count} < {atleast} times`)
 	end
 end
 
-local function diamond(bridge): (boolean?) -> ()
+local function diamond(bridge): () -> ()
 	local width = 5
 	local head = bridge.signal(0)
 	local current = {}
@@ -129,79 +142,75 @@ local function diamond(bridge): (boolean?) -> ()
 		end
 		return s
 	end)
+	local callCounter = { count = 0 }
 	bridge.effect(function()
 		sum.read()
+		callCounter.count += 1
 	end)
-	return function(verify: boolean?)
+	return function()
 		bridge.withBatch(function()
 			head.write(1)
 		end)
-		if verify then
-			assert(sum.read() == 2 * width, "diamond baseline")
-		end
+		expect(sum.read() == 2 * width, "diamond baseline")
+		local atleast = 500
+		callCounter.count = 0
 		for i = 0, 499 do
 			bridge.withBatch(function()
 				head.write(i)
 			end)
-			local v = sum.read()
-			if verify then
-				assert(v == (i + 1) * width, "diamond sum")
-			end
+			expect(sum.read() == (i + 1) * width, "diamond sum")
 		end
+		expect(callCounter.count >= atleast, `diamond: effect ran {callCounter.count} < {atleast} times`)
 	end
 end
 
-local function mux(bridge): (boolean?) -> ()
-	local heads = {}
-	for k = 0, 99 do
+local function mux(bridge): () -> ()
+	local heads = table.create(100)
+	for k = 1, 100 do
 		heads[k] = bridge.signal(0)
 	end
-	local muxc = bridge.computed(function()
-		local t = {}
-		for k = 0, 99 do
-			t[k] = heads[k].read()
+	local muxed = bridge.computed(function()
+		local t = table.create(100)
+		for k, h in heads do
+			t[k] = h.read()
 		end
 		return t
 	end)
-	local split = {}
-	for k = 0, 99 do
-		local k0 = k
-		local s1 = bridge.computed(function()
-			return muxc.read()[k0]
-		end)
-		split[k] = bridge.computed(function()
-			return s1.read() + 1
+	-- as upstream: every index's first computed, then every index's second one
+	local indexed = table.create(100)
+	for k = 1, 100 do
+		indexed[k] = bridge.computed(function()
+			return muxed.read()[k]
 		end)
 	end
-	for k = 0, 99 do
-		local k0 = k
+	local splited = table.create(100)
+	for k, x in indexed do
+		splited[k] = bridge.computed(function()
+			return x.read() + 1
+		end)
+	end
+	for _, x in splited do
 		bridge.effect(function()
-			split[k0].read()
+			x.read()
 		end)
 	end
-	return function(verify: boolean?)
+	return function()
 		for i = 0, 9 do
 			bridge.withBatch(function()
-				heads[i].write(i)
+				heads[i + 1].write(i)
 			end)
-			local v = split[i].read()
-			if verify then
-				assert(v == i + 1, "mux a")
-			end
+			expect(splited[i + 1].read() == i + 1, "mux a")
 		end
 		for i = 0, 9 do
 			bridge.withBatch(function()
-				heads[i].write(i * 2)
+				heads[i + 1].write(i * 2)
 			end)
-			local v = split[i].read()
-			if verify then
-				assert(v == i * 2 + 1, "mux b")
-			end
+			expect(splited[i + 1].read() == i * 2 + 1, "mux b")
 		end
 	end
 end
 
-local function repeatedObservers(bridge): (boolean?) -> ()
+local function repeatedObservers(bridge): () -> ()
 	local size = 30
 	local head = bridge.signal(0)
 	local current = bridge.computed(function()
@@ -211,29 +220,29 @@ local function repeatedObservers(bridge): (boolean?) -> ()
 		end
 		return result
 	end)
+	local callCounter = { count = 0 }
 	bridge.effect(function()
 		current.read()
+		callCounter.count += 1
 	end)
-	return function(verify: boolean?)
+	return function()
 		bridge.withBatch(function()
 			head.write(1)
 		end)
-		if verify then
-			assert(current.read() == size, "repeated baseline")
-		end
+		expect(current.read() == size, "repeated baseline")
+		local atleast = 100
+		callCounter.count = 0
 		for i = 0, 99 do
 			bridge.withBatch(function()
 				head.write(i)
 			end)
-			local v = current.read()
-			if verify then
-				assert(v == i * size, "repeated")
-			end
+			expect(current.read() == i * size, "repeated")
 		end
+		expect(callCounter.count >= atleast, `repeated: effect ran {callCounter.count} < {atleast} times`)
 	end
 end
 
-local function triangle(bridge): (boolean?) -> ()
+local function triangle(bridge): () -> ()
 	local width = 10
 	local head = bridge.signal(0)
 	local current = head
@@ -252,30 +261,30 @@ local function triangle(bridge): (boolean?) -> ()
 		end
 		return s
 	end)
+	local callCounter = { count = 0 }
 	bridge.effect(function()
 		sum.read()
+		callCounter.count += 1
 	end)
-	local constant = width * (width + 1) // 2
-	return function(verify: boolean?)
+	return function()
+		local constant = width * (width + 1) // 2
 		bridge.withBatch(function()
 			head.write(1)
 		end)
-		if verify then
-			assert(sum.read() == constant, "triangle baseline")
-		end
+		expect(sum.read() == constant, "triangle baseline")
+		local atleast = 100
+		callCounter.count = 0
 		for i = 0, 99 do
 			bridge.withBatch(function()
 				head.write(i)
 			end)
-			local v = sum.read()
-			if verify then
-				assert(v == constant - width + i * width, "triangle sum")
-			end
+			expect(sum.read() == constant - width + i * width, "triangle sum")
 		end
+		expect(callCounter.count >= atleast, `triangle: effect ran {callCounter.count} < {atleast} times`)
 	end
 end
 
-local function unstable(bridge): (boolean?) -> ()
+local function unstable(bridge): () -> ()
 	local head = bridge.signal(0)
 	local double = bridge.computed(function()
 		return head.read() * 2
@@ -286,37 +295,35 @@ local function unstable(bridge): (boolean?) -> ()
 	local current = bridge.computed(function()
 		local result = 0
 		for _ = 1, 20 do
-			if head.read() % 2 ~= 0 then
-				result += double.read()
-			else
-				result += inverse.read()
-			end
+			result += if head.read() % 2 ~= 0 then double.read() else inverse.read()
 		end
 		return result
 	end)
+	local callCounter = { count = 0 }
 	bridge.effect(function()
 		current.read()
+		callCounter.count += 1
 	end)
-	return function(verify: boolean?)
+	return function()
 		bridge.withBatch(function()
 			head.write(1)
 		end)
-		if verify then
-			assert(current.read() == 40, "unstable baseline")
-		end
+		expect(current.read() == 40, "unstable baseline")
+		local atleast = 100
+		callCounter.count = 0
 		for i = 0, 99 do
 			bridge.withBatch(function()
 				head.write(i)
 			end)
-			local _ = current.read()
+			-- upstream reads nothing here (its per-iteration assert is commented out)
 		end
+		expect(callCounter.count >= atleast, `unstable: effect ran {callCounter.count} < {atleast} times`)
 	end
 end
 
 -- mol (benches/kairo/molBench.ts, originally the $mol benchmark). Unlike the others this isn't
 -- about graph shape: several nodes do real compute via `hard`, which adds fib(16) = 1597 of
--- throwaway work per call, so it measures recompute cost under load. a/b are signals; c-g are
--- computeds; the three effects are upstream's H/I/J.
+-- throwaway work per call, so it measures recompute cost under load.
 local function fib(n: number): number
 	if n < 2 then
 		return 1
@@ -324,74 +331,144 @@ local function fib(n: number): number
 	return fib(n - 1) + fib(n - 2)
 end
 
-local function hard(n: number): number
+local function hard(n: number, _log: string): number
 	return n + fib(16)
 end
 
-local molNumbers = { 0, 1, 2, 3, 4 }
+local numbers = { 0, 1, 2, 3, 4 }
 
 local function mol(bridge): (boolean?) -> ()
 	local res = {}
-	local a = bridge.signal(0)
-	local b = bridge.signal(0)
-	local c = bridge.computed(function()
-		return (a.read() % 2) + (b.read() % 2)
+	local A = bridge.signal(0)
+	local B = bridge.signal(0)
+	local C = bridge.computed(function()
+		return (A.read() % 2) + (B.read() % 2)
 	end)
-	local d = bridge.computed(function()
-		local pa, pb = a.read() % 2, b.read() % 2
-		local out = {}
-		for i = 1, #molNumbers do
-			out[i] = { x = molNumbers[i] + pa - pb }
+	local D = bridge.computed(function()
+		local out = table.create(#numbers)
+		for i, n in numbers do -- A and B are re-read per element, as upstream's map callback does
+			out[i] = { x = n + (A.read() % 2) - (B.read() % 2) }
 		end
 		return out
 	end)
-	local e = bridge.computed(function()
-		return hard(c.read() + a.read() + d.read()[1].x)
+	local E = bridge.computed(function()
+		return hard(C.read() + A.read() + D.read()[1].x, "E")
 	end)
-	local f = bridge.computed(function()
-		local d3 = d.read()[3].x
-		return hard(if d3 ~= 0 then d3 else b.read())
+	local F = bridge.computed(function()
+		local d2 = D.read()[3].x -- upstream: D.read()[2].x || B.read()
+		return hard(if d2 ~= 0 then d2 else B.read(), "F")
 	end)
-	local g = bridge.computed(function()
-		local cv = c.read()
-		return cv + (if cv ~= 0 then cv else e.read() % 2) + d.read()[5].x + f.read()
+	local G = bridge.computed(function()
+		-- upstream: C.read() + (C.read() || E.read() % 2) + D.read()[4].x + F.read()
+		local c1 = C.read()
+		local c2 = C.read()
+		return c1 + (if c2 ~= 0 then c2 else E.read() % 2) + D.read()[5].x + F.read()
 	end)
-	bridge.effect(function()
-		table.insert(res, hard(g.read()))
+	bridge.effect(function() -- H
+		table.insert(res, hard(G.read(), "H"))
 	end)
-	bridge.effect(function()
-		table.insert(res, g.read())
+	bridge.effect(function() -- I
+		table.insert(res, G.read())
 	end)
-	bridge.effect(function()
-		table.insert(res, hard(f.read()))
+	bridge.effect(function() -- J
+		table.insert(res, hard(F.read(), "J"))
 	end)
 	local i = 0
 	return function(verify: boolean?)
 		i += 1
 		table.clear(res)
 		bridge.withBatch(function()
-			b.write(1)
-			a.write(1 + i * 2)
+			B.write(1)
+			A.write(1 + i * 2)
 		end)
 		bridge.withBatch(function()
-			a.write(2 + i * 2)
-			b.write(2)
+			A.write(2 + i * 2)
+			B.write(2)
 		end)
 		if verify then
-			assert(f.read() == 1599, "mol f")
-			assert(g.read() == 1604, "mol g")
+			expect(F.read() == 1599, "mol F")
+			expect(G.read() == 1604, "mol G")
 		end
 	end
 end
 
-return {
+local cases = {
 	{ name = "avoidable", fn = avoidablePropagation },
 	{ name = "broad", fn = broadPropagation },
 	{ name = "deep", fn = deepPropagation },
 	{ name = "diamond", fn = diamond },
-	{ name = "mux", fn = mux },
+	-- heads[0] is written its own value (0) in both loops, so 18 of the 20 writes change a split
+	{ name = "mux", fn = mux, effects = 18 },
 	{ name = "repeated", fn = repeatedObservers },
 	{ name = "triangle", fn = triangle },
 	{ name = "unstable", fn = unstable },
-	{ name = "mol", fn = mol },
+	-- G changes in both batches (1604 -> 1607 -> 1604), so H and I each run twice; F never changes
+	{ name = "mol", fn = mol, effects = 4 },
 }
+
+local ITERS = 50 -- iterations per timed run (upstream: 500); reported per iteration
+
+-- builds the graph and runs upstream's three warm-up iterations
+local function warm(bridge, fn)
+	local iter = bridge.withBuild(function()
+		return fn(bridge)
+	end)
+	iter()
+	iter()
+	iter()
+	return iter
+end
+
+local M = { cases = {}, checks = {} }
+
+for _, case in cases do
+	local fn = case.fn
+	table.insert(M.cases, {
+		name = case.name,
+		per = ITERS,
+		run = function(bridge)
+			warm(bridge, fn) -- upstream's warm-up round
+			bridge.cleanup()
+			harness.gc()
+			local iter = warm(bridge, fn)
+			local secs = harness.fastest(10, function()
+				local t0 = os.clock()
+				for _ = 1, ITERS do
+					iter()
+				end
+				return os.clock() - t0
+			end)
+			iter(true)
+			bridge.cleanup()
+			return secs / ITERS
+		end,
+		evals = function(bridge)
+			local computed, effect = harness.count(bridge, function(counted, reset)
+				local iter = warm(counted, fn)
+				reset()
+				for _ = 1, ITERS do
+					iter()
+				end
+			end)
+			return (computed + effect) / ITERS
+		end,
+	})
+	table.insert(M.checks, {
+		name = case.name,
+		run = function(bridge)
+			local _, effect = harness.count(bridge, function(counted, reset)
+				local iter = counted.withBuild(function()
+					return fn(counted)
+				end)
+				iter(true)
+				reset()
+				iter(true) -- a second pass catches state carried between iterations
+			end)
+			if case.effects and effect < case.effects then
+				harness.fail("wrong", `{case.name}: effects ran {effect} < {case.effects} times`)
+			end
+		end,
+	})
+end
+
+return M

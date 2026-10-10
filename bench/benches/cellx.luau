@@ -1,8 +1,10 @@
 -- Port of the cellx benchmark from milomg/js-reactivity-benchmark (cellxBench.ts).
 
-local M = {}
+local harness = require("../harness")
 
-function M.build(bridge, layers: number)
+-- Builds the lattice and returns upstream's timed iterator: read the last layer, write the four sources in
+-- one batch, read it again, and return both readings.
+local function build(bridge, layers: number)
 	return bridge.withBuild(function()
 		local start = {
 			prop1 = bridge.signal(1),
@@ -54,6 +56,56 @@ function M.build(bridge, layers: number)
 			return before, after
 		end
 	end)
+end
+
+-- Upstream's golden leaf values, the same at both sizes.
+local function expect(before: { number }, after: { number })
+	local got = table.concat(before, ",") .. " / " .. table.concat(after, ",")
+	local want = "-3,-6,-2,2 / -2,-4,2,3"
+	if got ~= want then
+		harness.fail("wrong", `wrong value: \{{got}}, expected \{{want}}`)
+	end
+end
+
+local M = { cases = {}, checks = {} }
+
+for _, layers in { 1000, 2500 } do
+	local name = "cellx" .. layers
+	table.insert(M.cases, {
+		name = name,
+		-- upstream times each run from a fresh build and reports their total; this reports the mean
+		run = function(bridge)
+			build(bridge, layers)() -- upstream's warm-up run
+			bridge.cleanup()
+			return harness.mean(10, function()
+				local propagate = build(bridge, layers)
+				harness.gc()
+				local t0 = os.clock()
+				local before, after = propagate()
+				local secs = os.clock() - t0
+				bridge.cleanup()
+				expect(before, after) -- upstream asserts the timed runs' values too
+				return secs
+			end)
+		end,
+		-- one propagation, as upstream's warm-up run
+		evals = function(bridge)
+			local computed, effect = harness.count(bridge, function(counted, reset)
+				local propagate = build(counted, layers)
+				reset()
+				propagate()
+			end)
+			return computed + effect
+		end,
+	})
+	table.insert(M.checks, {
+		name = name,
+		run = function(bridge)
+			local before, after = build(bridge, layers)()
+			bridge.cleanup()
+			expect(before, after)
+		end,
+	})
 end
 
 return M

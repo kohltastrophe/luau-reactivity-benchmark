@@ -1,13 +1,12 @@
-local PATH = "../lib/vide/"
-
 local Types = require("./types")
-local flags = require(`{PATH}flags`)
+-- individual modules via the @vide alias: the package root (vide's init.luau) is its Roblox UI entry point
+local flags = require("@vide/flags")
 local vide = {
-	source = require(`{PATH}source`),
-	derive = require(`{PATH}derive`),
-	effect = require(`{PATH}effect`),
-	batch = require(`{PATH}batch`),
-	root = require(`{PATH}root`),
+	source = require("@vide/source"),
+	derive = require("@vide/derive"),
+	effect = require("@vide/effect"),
+	batch = require("@vide/batch"),
+	root = require("@vide/root"),
 } :: any
 
 -- strict is forced off to match Vide's production build
@@ -47,7 +46,7 @@ function M.withBatch(fn: () -> ())
 	vide.batch(fn)
 end
 
-local destroy: () -> ()
+local destroy: (() -> ())? = nil
 
 function M.withBuild<T>(fn: () -> T): T
 	local result: any = nil
@@ -57,8 +56,12 @@ function M.withBuild<T>(fn: () -> T): T
 	return result
 end
 
-function M.cleanup()
-	destroy()
+function M.cleanup() -- vide errors on destroying a root twice
+	local d = destroy
+	destroy = nil
+	if d then
+		d()
+	end
 end
 
 return M
