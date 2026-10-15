@@ -4,9 +4,6 @@ local Flux = require("@flux")
 type Node = Types.Node
 type Framework = Types.Framework
 
--- strict is forced off to match Flux's production build
-Flux.strict(false)
-
 local M = {} :: Framework
 
 function M.signal(initial: any): Node
