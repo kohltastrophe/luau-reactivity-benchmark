@@ -1,0 +1,6 @@
+# plexer's cards are gitignored but should stay greppable: ripgrep reads
+# .ignore before .gitignore, so this re-admits the tree to search only.
+!plexer/
+plexer/.cache/
+plexer/.graph/
+plexer/.health/

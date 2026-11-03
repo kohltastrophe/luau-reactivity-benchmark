@@ -1,0 +1,13 @@
+# generated: wally downloads (made headless in place) and their @aliases (rebuilt by assemble.py)
+/Packages/
+/.luaurc
+
+# generated results (benchmark.py)
+/bench/results.json
+/chart.svg
+/chart-small.svg
+
+# tooling cruft
+/plexer/
+__pycache__/
+.DS_Store
