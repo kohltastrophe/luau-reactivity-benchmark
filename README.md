@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/github/license/kohltastrophe/luau-reactivity-benchmark?style=for-the-badge)](LICENSE.md)
 
-A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark) comparing [Flux](https://github.com/kohltastrophe/flux) and [Vide](https://github.com/centau/vide) across identical dependency graphs. Every adapter in `adapters/` runs headless under the `luau` CLI and renders to a single chart.
+A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark) comparing [Flux](https://github.com/kohltastrophe/flux), [Vide](https://github.com/centau/vide), and [Charm](https://github.com/littensy/charm) across identical dependency graphs. Every adapter in `adapters/` runs headless under the `luau` CLI and renders to a single chart.
 
 ## Running it
 
@@ -25,7 +25,7 @@ python3 chart.py --flag=--codegen                 # re-render existing JSON resu
 
 ## What's measured
 
-Each adapter implements upstream's `ReactiveFramework` contract ([`adapters/types.luau`](adapters/types.luau)). Libraries with zero-arg getters and setters (`Flux`, `Vide`) wire their primitive functions directly into `{ read, write }`. Every library runs the same graph shapes, iteration counts, and seeded RNG (`sfc32` / `xmur3a`, ported bit-for-bit), so timings compare directly.
+Each adapter implements upstream's `ReactiveFramework` contract ([`adapters/types.luau`](adapters/types.luau)). Libraries with zero-arg getters and setters (`Charm`, `Flux`, `Vide`) wire their primitive functions directly into `{ read, write }`. Every library runs the same graph shapes, iteration counts, and seeded RNG (`sfc32` / `xmur3a`, ported bit-for-bit), so timings compare directly.
 
 | Suite       | Exercises                                                                                                                                    |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -57,6 +57,7 @@ Each adapter uses the library's low-level primitive API, production flags, and f
 
 | Adapter | Primitives & `{ read, write }` wiring | Production & parity settings |
 | :--- | :--- | :--- |
+| [`charm.luau`](adapters/charm.luau) | `signal`, `computed`, `effect`, `batch`, `effectScope`; direct `{ read, write }`, `effect` wrapper discarding truthy return values | Disables `flags.strict` and `flags.frozen` to match production builds |
 | [`flux.luau`](adapters/flux.luau) | `createSignal`, `createMemo`, `createEffect`, `flush`, `scope`; direct `{ read, write }` and `effect` references | Hooks `Compat.setWarnHook` so effect errors caught during `flush()` re-throw after state reset |
 | [`vide.luau`](adapters/vide.luau) | `source`, `derive`, `effect`, `batch`, `root`; direct `{ read, write }` (`source` is both) and `effect` references | Requires core submodules directly (skipping the Roblox UI `init.luau`) and sets `flags.strict = false` |
 

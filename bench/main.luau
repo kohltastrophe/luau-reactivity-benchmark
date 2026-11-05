@@ -28,6 +28,9 @@ local suites: { { name: string, suite: Types.Suite } } = {
 
 -- Lazy thunks keep static module graph edges for typecheckers/indexers while loading only the requested adapter.
 local ADAPTERS: { [string]: () -> Framework } = {
+	charm = function()
+		return require("../adapters/charm")
+	end,
 	flux = function()
 		return require("../adapters/flux")
 	end,
