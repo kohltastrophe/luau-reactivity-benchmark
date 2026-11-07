@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/github/license/kohltastrophe/luau-reactivity-benchmark?style=for-the-badge)](LICENSE.md)
 
-A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark) comparing [Flux](https://github.com/kohltastrophe/flux), [Vide](https://github.com/centau/vide), and [Charm](https://github.com/littensy/charm) across identical dependency graphs. Every adapter in `adapters/` runs headless under the `luau` CLI and renders to a single chart.
+A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark) comparing [Flux](https://github.com/kohltastrophe/flux), [Vide](https://github.com/centau/vide), [Charm](https://github.com/littensy/charm), and [signals](https://github.com/Roblox/signals) across identical dependency graphs. Every adapter in `adapters/` runs headless under the `luau` CLI and renders to a single chart.
 
 ## Running it
 
@@ -13,8 +13,8 @@ python3 benchmark.py                              # -> bench/results.json, chart
 python3 benchmark.py --passes 3                   # keep each row's fastest across 3 interleaved passes
 python3 benchmark.py --flag=--codegen             # native codegen instead of -O2 interpreter
 python3 benchmark.py --verify                     # correctness gate only
-python3 benchmark.py --filter flux vide           # print table for selected adapters without overwriting files
-python3 benchmark.py --filter flux vide --write   # also write partial JSON and SVG files
+python3 benchmark.py --filter signals vide        # print table for selected adapters without overwriting files
+python3 benchmark.py --filter signals vide --write   # also write partial JSON and SVG files
 python3 chart.py --flag=--codegen                 # re-render existing JSON results (omit --flag for default -O2)
 ```
 
@@ -25,7 +25,7 @@ python3 chart.py --flag=--codegen                 # re-render existing JSON resu
 
 ## What's measured
 
-Each adapter implements upstream's `ReactiveFramework` contract ([`adapters/types.luau`](adapters/types.luau)). Libraries with zero-arg getters and setters (`Charm`, `Flux`, `Vide`) wire their primitive functions directly into `{ read, write }`. Every library runs the same graph shapes, iteration counts, and seeded RNG (`sfc32` / `xmur3a`, ported bit-for-bit), so timings compare directly.
+Each adapter implements upstream's `ReactiveFramework` contract ([`adapters/types.luau`](adapters/types.luau)). Libraries with zero-arg getters and setters (`Charm`, `Flux`, `Vide`) wire their primitive functions directly into `{ read, write }`, while `signals` uses thin forwarding closures for its active `Signals.scope` tracking argument. Every library runs the same graph shapes, iteration counts, and seeded RNG (`sfc32` / `xmur3a`, ported bit-for-bit), so timings compare directly.
 
 | Suite       | Exercises                                                                                                                                    |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -59,6 +59,7 @@ Each adapter uses the library's low-level primitive API, production flags, and f
 | :--- | :--- | :--- |
 | [`charm.luau`](adapters/charm.luau) | `signal`, `computed`, `effect`, `batch`, `effectScope`; direct `{ read, write }`, `effect` wrapper discarding truthy return values | Disables `flags.strict` and `flags.frozen` to match production builds |
 | [`flux.luau`](adapters/flux.luau) | `createSignal`, `createMemo`, `createEffect`, `flush`, `scope`; direct `{ read, write }` and `effect` references | Hooks `Compat.setWarnHook` so effect errors caught during `flush()` re-throw after state reset |
+| [`signals.luau`](adapters/signals.luau) | `createSignal`, `createComputed`, `createEffect`, `SignalsScheduler.batch`; closures forwarding the active `Signals.scope`, per-build dispose list | Pins `SignalsFlags` to `false` (outside Roblox, its `DefineFastFlag` fallback defaults to `true` and wraps batches and effects in `xpcall` + `debug.traceback`) |
 | [`vide.luau`](adapters/vide.luau) | `source`, `derive`, `effect`, `batch`, `root`; direct `{ read, write }` (`source` is both) and `effect` references | Requires core submodules directly (skipping the Roblox UI `init.luau`) and sets `flags.strict = false` |
 
 ### Differences from upstream

@@ -7,4 +7,5 @@ realm = "shared"
 [dependencies]
 charm = "littensy/charm@=0.11.1"
 flux = "kohltastrophe/flux@=0.4.0"
+signals = "roblox/signals@=0.9.0"
 vide = "centau/vide@=0.4.1"

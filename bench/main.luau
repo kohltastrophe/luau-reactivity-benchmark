@@ -34,6 +34,9 @@ local ADAPTERS: { [string]: () -> Framework } = {
 	flux = function()
 		return require("../adapters/flux")
 	end,
+	signals = function()
+		return require("../adapters/signals")
+	end,
 	vide = function()
 		return require("../adapters/vide")
 	end,
