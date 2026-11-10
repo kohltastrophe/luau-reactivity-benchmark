@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/github/license/kohltastrophe/luau-reactivity-benchmark?style=for-the-badge)](LICENSE.md)
 
-A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark) comparing [Flux](https://github.com/kohltastrophe/flux), [Vide](https://github.com/centau/vide), [Charm](https://github.com/littensy/charm), and [signals](https://github.com/Roblox/signals) across identical dependency graphs. Every adapter in `adapters/` runs headless under the `luau` CLI and renders to a single chart.
+A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark) comparing [Flux](https://github.com/kohltastrophe/flux), [Vide](https://github.com/centau/vide), [Fusion](https://github.com/dphfox/Fusion), [Charm](https://github.com/littensy/charm), and [signals](https://github.com/Roblox/signals) across identical dependency graphs. Every adapter in `adapters/` runs headless under the `luau` CLI and renders to a single chart.
 
 ## Running it
 
@@ -25,7 +25,7 @@ python3 chart.py --flag=--codegen                 # re-render existing JSON resu
 
 ## What's measured
 
-Each adapter implements upstream's `ReactiveFramework` contract ([`adapters/types.luau`](adapters/types.luau)). Libraries with zero-arg getters and setters (`Charm`, `Flux`, `Vide`) wire their primitive functions directly into `{ read, write }`, while `signals` uses thin forwarding closures for its active `Signals.scope` tracking argument. Every library runs the same graph shapes, iteration counts, and seeded RNG (`sfc32` / `xmur3a`, ported bit-for-bit), so timings compare directly.
+Each adapter implements upstream's `ReactiveFramework` contract ([`adapters/types.luau`](adapters/types.luau)). Libraries with zero-arg getters and setters (`Charm`, `Flux`, `Vide`) wire their primitive functions directly into `{ read, write }`, while libraries with explicit tracking handles (`Fusion`, `signals`) use thin forwarding closures for the active `use` or `scope` argument. Every library runs the same graph shapes, iteration counts, and seeded RNG (`sfc32` / `xmur3a`, ported bit-for-bit), so timings compare directly.
 
 | Suite       | Exercises                                                                                                                                    |
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -59,12 +59,13 @@ Each adapter uses the library's low-level primitive API, production flags, and f
 | :--- | :--- | :--- |
 | [`charm.luau`](adapters/charm.luau) | `signal`, `computed`, `effect`, `batch`, `effectScope`; direct `{ read, write }`, `effect` wrapper discarding truthy return values | Disables `flags.strict` and `flags.frozen` to match production builds |
 | [`flux.luau`](adapters/flux.luau) | `createSignal`, `createMemo`, `createEffect`, `flush`, `scope`; direct `{ read, write }` and `effect` references | Hooks `Compat.setWarnHook` so effect errors caught during `flush()` re-throw after state reset |
+| [`fusion.luau`](adapters/fusion.luau) | `Value`, `Computed`, `Observer` + `Computed` (`effect`), `scoped` / `doCleanup`; closures forwarding active `use` (or `peek`) and `Value:set`, pass-through `withBatch` | Stubs a synchronous `ExternalProvider` (no `game`), throws `logErrorNonFatal`, and sets `safetyTimerMultiplier = 1e9` so deep acyclic lattices hit real VM limits instead of the ~1s loop guard |
 | [`signals.luau`](adapters/signals.luau) | `createSignal`, `createComputed`, `createEffect`, `SignalsScheduler.batch`; closures forwarding the active `Signals.scope`, per-build dispose list | Pins `SignalsFlags` to `false` (outside Roblox, its `DefineFastFlag` fallback defaults to `true` and wraps batches and effects in `xpcall` + `debug.traceback`) |
 | [`vide.luau`](adapters/vide.luau) | `source`, `derive`, `effect`, `batch`, `root`; direct `{ read, write }` (`source` is both) and `effect` references | Requires core submodules directly (skipping the Roblox UI `init.luau`) and sets `flags.strict = false` |
 
 ### Differences from upstream
 
-Iteration counts are scaled down for headless `luau` while keeping identical graph topologies: `kairo` runs `50` iterations per repeat (vs. `500`), `sbench` uses `20,000` create and `1,500` update base counts (vs. `100,000`), and `dynamic` runs `300–12,000` iterations (vs. `500–600,000`). `sbench/createSignals` also passes `scount = 0` into a preallocated `COUNT`-element table instead of creating `COUNT` untimed setup signals first, so scope-owning libraries are not charged `2×` disposal inside `cleanup()`. Upstream's `map` and `reduce` bodies are written as plain Luau loops with identical read order, and wrong leaf values fail the run instead of only logging.
+Iteration counts are scaled down for headless `luau` while keeping identical graph topologies: `kairo` runs `50` iterations per repeat (vs. `500`), `sbench` uses `20,000` create and `1,500` update base counts (vs. `100,000`), and `dynamic` runs `300–12,000` iterations (vs. `500–600,000`). `sbench/createSignals` also passes `scount = 0` into a preallocated `COUNT`-element table instead of creating `COUNT` untimed setup signals first, so scope-owning libraries (`Fusion`) are not charged `2×` disposal inside `cleanup()`. Upstream's `map` and `reduce` bodies are written as plain Luau loops with identical read order, and wrong leaf values fail the run instead of only logging.
 
 ### Scope: fine-grained graphs vs. UI renderers
 

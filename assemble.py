@@ -25,6 +25,11 @@ INDEX = PACKAGES / "_Index"
 LUAURC = ROOT / ".luaurc"
 STAMP = PACKAGES / ".headless"  # wally install wipes Packages/
 
+# Known upstream repositories for Wally packages whose published wally.toml omits `repository`.
+REPO_FALLBACKS: dict[str, str] = {
+    "elttob/fusion": "https://github.com/dphfox/Fusion",
+}
+
 ALIAS_DECL_RE = re.compile(
     r"^([ \t]*)local[ \t]+([A-Za-z_]\w*)(?:[ \t]*:[ \t]*[A-Za-z_][\w.<>, \t?|]*)?[ \t]*=[ \t]*(.+?)[ \t]*;?$",
     re.M,
@@ -448,7 +453,7 @@ def package_meta(name: str) -> tuple[str, str, str] | None:
     except (OSError, tomllib.TOMLDecodeError):
         repo = None
     if not repo:
-        repo = f"https://github.com/{ident}"
+        repo = REPO_FALLBACKS.get(ident, f"https://github.com/{ident}")
     return ident, version, repo
 
 

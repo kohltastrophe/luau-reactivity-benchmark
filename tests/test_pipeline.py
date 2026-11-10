@@ -119,16 +119,36 @@ class AssembleTests(unittest.TestCase):
             self.assertEqual(count, 1)
             self.assertEqual(entry.read_text(encoding="utf-8"), 'return require("./helper")\n')
 
-    def test_alias_key_validation(self) -> None:
-        self.assertTrue(assemble._valid_alias_key("flux"))
-        self.assertTrue(assemble._valid_alias_key("vide.flags"))
+    def test_alias_key_validation_and_package_meta_fallback(self) -> None:
+        self.assertTrue(assemble._valid_alias_key("fusion"))
+        self.assertTrue(assemble._valid_alias_key("signals.Signals"))
         self.assertFalse(assemble._valid_alias_key("self"))
         self.assertFalse(assemble._valid_alias_key("../bad"))
         self.assertIsNone(assemble._valid_http_url("javascript:alert(1)"))
         self.assertEqual(
-            assemble._valid_http_url("https://github.com/kohltastrophe/flux"),
-            "https://github.com/kohltastrophe/flux",
+            assemble._valid_http_url("https://github.com/dphfox/Fusion"),
+            "https://github.com/dphfox/Fusion",
         )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            packages = tmp_path / "Packages"
+            index = packages / "_Index"
+            fusion_dir = index / "elttob_fusion@0.3.0" / "fusion"
+            fusion_dir.mkdir(parents=True)
+            (fusion_dir / "wally.toml").write_text(
+                "[package]\nname = \"elttob/fusion\"\nversion = \"0.3.0\"\n",
+                encoding="utf-8",
+            )
+            (packages / "fusion.lua").write_text(
+                "return require(script.Parent._Index[\"elttob_fusion@0.3.0\"][\"fusion\"])\n",
+                encoding="utf-8",
+            )
+            with mock.patch.object(assemble, "PACKAGES", packages), mock.patch.object(assemble, "INDEX", index):
+                self.assertEqual(
+                    assemble.package_meta("fusion"),
+                    ("elttob/fusion", "0.3.0", "https://github.com/dphfox/Fusion"),
+                )
 
 
 class BenchmarkTests(unittest.TestCase):
