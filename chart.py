@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render `bench/results.json` to `chart.svg` and `chart-small.svg`.
+"""Render `bench/results.json` and `bench/memory.json` to `chart.svg` and `chart-small.svg`.
 
 Called automatically by `benchmark.py`, or run standalone (`python3 chart.py [--flag FLAG]`) to re-render
 from existing JSON results.
@@ -21,6 +21,7 @@ import assemble
 
 ROOT = assemble.ROOT
 RESULTS = ROOT / "bench" / "results.json"
+MEMORY = ROOT / "bench" / "memory.json"
 OUT = ROOT / "chart.svg"
 OUT_SMALL = ROOT / "chart-small.svg"
 
@@ -38,6 +39,7 @@ SUITE_TITLES: dict[str, tuple[str, str]] = {
     "cellx": ("cellx", "interlinked layer lattice"),
     "dynamic": ("dynamic graph", "static + runtime-varying dependencies"),
     "sbench": ("sbench", "create / update throughput"),
+    "gc": ("teardown & GC", "dispose cost, reclaim time, and live-graph tracing time"),
 }
 SUITE_UNITS: dict[str, int] = {
     "kairo": 50,
@@ -155,6 +157,13 @@ def group_rows(rows: Sequence[dict[str, Any]]) -> tuple[list[RowKey], GroupedRow
     return list(data), data
 
 
+def load_memory(memory_path: Path | str = MEMORY) -> dict[str, dict[str, Any]]:
+    """Load `bench/memory.json` if present, returning `{}` when absent or invalid."""
+    try:
+        return json.loads(Path(memory_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
 
 def fastest(group: dict[str, dict[str, Any]]) -> float | None:
     """Return a row's fastest finishing time in seconds, or `None` if no framework finished."""
@@ -216,6 +225,14 @@ def fmt_evals(n: float) -> str:
     if n >= 1e3:
         return f"{n / 1e3:.1f}k evals"
     return f"{n:.0f} evals"
+
+
+def fmt_kb(kb: float) -> str:
+    if kb >= 1024:
+        return f"{kb / 1024:.1f} MB"
+    if kb < 10:
+        return f"{kb:.1f} KB"
+    return f"{kb:.0f} KB"
 
 
 def _oklch_to_hex(L: float, C: float, H: float) -> str:
@@ -463,6 +480,108 @@ def _render_suites(
     return y
 
 
+def _retention_cap_kb(mem: dict[str, dict[str, Any]], present: Sequence[str], units: int) -> float:
+    """Return the KB ceiling corresponding to full plot width (leanest `liveKB`, with safe fallbacks)."""
+    live_vals = [
+        float(live)
+        for fw in present
+        if (live := mem[fw].get("liveKB")) is not None and float(live) > 0
+    ]
+    if live_vals:
+        return min(live_vals)
+    derived = [
+        float(bpn) * (3 * max(units, 1)) / 1024.0
+        for fw in present
+        if (bpn := mem[fw].get("bytesPerNode")) is not None and float(bpn) > 0
+    ]
+    if derived:
+        return min(derived)
+    retained = [
+        float(v)
+        for fw in present
+        for key in ("retainedKB", "steadyKB")
+        if (v := mem[fw].get(key)) is not None and float(v) > 0
+    ]
+    return max(retained, default=1024.0)
+
+
+def _render_memory_row(
+    canvas: Canvas,
+    layout: Layout,
+    y: float,
+    rowname: str,
+    field_name: str,
+    fmt: Callable[[float], str],
+    cap_kb: float | None,
+    mem: dict[str, dict[str, Any]],
+    present: Sequence[str],
+    colors: dict[str, str],
+) -> float:
+    vals = {fw: mem[fw].get(field_name) for fw in present}
+    relative = cap_kb is None
+    best = (
+        min((float(v) for v in vals.values() if v is not None and float(v) > 0), default=None)
+        if relative
+        else None
+    )
+    gh = _draw_group_head(canvas, layout, y, len(present), rowname, fmt(best) if best is not None else "")
+    by = y
+    for fw in present:
+        raw = vals[fw]
+        v = float(raw) if raw is not None else None
+        if relative:
+            rel = v / best if (v is not None and v > 0 and best) else 0.0
+        else:
+            assert cap_kb is not None
+            rel = (v / cap_kb) * MAX_REL if (v is not None and v > 0 and cap_kb > 0) else 0.0
+        w = _draw_bar(canvas, layout, by, colors[fw], rel)
+        _draw_bar_label(
+            canvas,
+            layout,
+            by,
+            fw,
+            fmt_mult(rel) if best is not None else "",
+            fmt(v) if v is not None else "n/a",
+            w,
+        )
+        by += BAR_H + BAR_GAP
+    return y + gh + GROUP_PAD
+
+
+def _render_memory(
+    canvas: Canvas,
+    layout: Layout,
+    y: float,
+    mem: dict[str, dict[str, Any]],
+    frameworks: Sequence[str],
+    colors: dict[str, str],
+) -> tuple[float, float]:
+    present = [fw for fw in frameworks if fw in mem and isinstance(mem[fw], dict)]
+    if not present:
+        return y, y - 4
+    units = int(mem[present[0]].get("N") or 20000)
+    cap_kb = _retention_cap_kb(mem, present, units)
+    y = _draw_section_head(
+        canvas,
+        layout,
+        y,
+        "memory",
+        f"{3 * units // 1000}k-node graph · footprint ×leanest, "
+        f"retention scaled to {fmt_kb(cap_kb)} leanest graph (~0 = fully released) · "
+        "excluded from the overall geometric mean",
+    )
+    grid_bottom = y - 4
+    specs: tuple[tuple[str, str, Callable[[float], str], float | None], ...] = (
+        ("node footprint", "bytesPerNode", lambda b: f"{b:.0f} B", None),
+        ("build retained", "retainedKB", fmt_kb, cap_kb),
+        ("steady retained", "steadyKB", fmt_kb, cap_kb),
+    )
+    for rowname, field_name, fmt, row_cap in specs:
+        y = _render_memory_row(canvas, layout, y, rowname, field_name, fmt, row_cap, mem, present, colors)
+        if row_cap is None:
+            grid_bottom = y - GROUP_PAD + 4
+    return y + 8, grid_bottom
+
 
 def _render_footer(layout: Layout, total_h: float, charge: float, detail: bool) -> str:
     noise = "noise is about ±10% even with fastest-of-N and several passes, so treat smaller gaps as ties."
@@ -485,11 +604,12 @@ def _render_footer(layout: Layout, total_h: float, charge: float, detail: bool) 
 
 def render_svg_pair(
     rows: Sequence[dict[str, Any]],
+    mem: dict[str, dict[str, Any]],
     flag: str = "-O2",
     in_gha: bool | None = None,
     luau_version: str | None = None,
 ) -> tuple[str, str, int]:
-    """Render `(full_svg, small_svg, total_height)` in memory from parsed rows."""
+    """Render `(full_svg, small_svg, total_height)` in memory from parsed rows and memory stats."""
     layout = make_layout(in_gha)
     version = os.environ.get("LUAU_VERSION") if luau_version is None else luau_version
     order, data = group_rows(rows)
@@ -517,9 +637,10 @@ def render_svg_pair(
 
     full_canvas = Canvas(front=list(hero_canvas.front), behind=list(hero_canvas.behind))
     suites_bottom = _render_suites(full_canvas, layout, hero_bottom, order, data, frameworks, colors)
-    full_grid = _render_grid(layout, axis_top + 2, suites_bottom - GROUP_PAD + 4)
+    final_y, grid_bottom = _render_memory(full_canvas, layout, suites_bottom, mem, frameworks, colors)
+    full_grid = _render_grid(layout, axis_top + 2, grid_bottom)
 
-    total_h = int(suites_bottom + 60)
+    total_h = int(final_y + 60)
     full_svg = document(
         "".join(full_canvas.behind)
         + "".join(full_grid)
@@ -533,12 +654,13 @@ def render_svg_pair(
 
 def render_from_data(
     rows: Sequence[dict[str, Any]],
+    mem: dict[str, dict[str, Any]],
     flag: str = "-O2",
     out_path: Path | str = OUT,
     out_small_path: Path | str = OUT_SMALL,
 ) -> None:
-    """Render and write `chart.svg` and `chart-small.svg` from in-memory rows."""
-    full_svg, small_svg, total_h = render_svg_pair(rows, flag=flag)
+    """Render and write `chart.svg` and `chart-small.svg` from in-memory rows and memory data."""
+    full_svg, small_svg, total_h = render_svg_pair(rows, mem, flag=flag)
     Path(out_small_path).write_text(small_svg, encoding="utf-8")
     Path(out_path).write_text(full_svg, encoding="utf-8")
     bench_count = len({(r["suite"], r["test"]) for r in rows})
@@ -546,9 +668,10 @@ def render_from_data(
 
 
 def main(flag: str = "-O2") -> None:
-    """Load `bench/results.json` and render both SVG charts."""
+    """Load `bench/results.json` + `bench/memory.json` and render both SVG charts."""
     rows = json.loads(Path(RESULTS).read_text(encoding="utf-8"))
-    render_from_data(rows, flag=flag)
+    mem = load_memory(MEMORY)
+    render_from_data(rows, mem, flag=flag)
 
 
 def _cli(argv: Sequence[str] | None = None) -> None:

@@ -9,19 +9,19 @@ A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity
 Requires Python 3.11+, [`luau`](https://github.com/luau-lang/luau), and [`wally`](https://github.com/UpliftGames/wally) on `PATH`.
 
 ```sh
-python3 benchmark.py                              # -> bench/results.json, chart.svg, chart-small.svg
-python3 benchmark.py --passes 3                   # keep each row's fastest across 3 interleaved passes
-python3 benchmark.py --flag=--codegen             # native codegen instead of -O2 interpreter
-python3 benchmark.py --verify                     # correctness gate only
-python3 benchmark.py --filter signals vide        # print table for selected adapters without overwriting files
-python3 benchmark.py --filter signals vide --write   # also write partial JSON and SVG files
-python3 chart.py --flag=--codegen                 # re-render existing JSON results (omit --flag for default -O2)
+python3 benchmark.py                                # -> bench/results.json, bench/memory.json, chart.svg, chart-small.svg
+python3 benchmark.py --passes 3                     # keep each row's fastest across 3 interleaved passes
+python3 benchmark.py --flag=--codegen               # native codegen instead of -O2 interpreter
+python3 benchmark.py --verify                       # correctness gate only
+python3 benchmark.py --filter signals vide          # print tables for selected adapters without overwriting files
+python3 benchmark.py --filter signals vide --write  # also write partial JSON and SVG files
+python3 chart.py --flag=--codegen                   # re-render existing JSON results (omit --flag for default -O2)
 ```
 
 1. **Assemble** ([`assemble.py`](assemble.py)): runs `wally install` whenever `wally.toml`, `wally.lock`, or `assemble.py` changes, rewrites Roblox instance `require(...)` chains and `Packages/_Index` shims to Luau string requires, and writes `@<name>` aliases to `.luaurc`.
 2. **Measure** ([`bench/main.luau`](bench/main.luau)): runs every `(adapter, bench)` pair in its own `luau` process (capped by `BENCH_CAP`, default `60s`) so heap state and GC debt never carry across rows. Timed runs interleave frameworks per benchmark row and rotate framework order on each pass.
-3. **Count**: records node evaluations in separate untimed processes running in parallel.
-4. **Report** ([`chart.py`](chart.py)): writes `bench/results.json`, prints the ranked summary table, and renders `chart.svg` alongside `chart-small.svg` (compact overall-geomean card).
+3. **Count**: records node evaluations and memory footprint in separate untimed processes running in parallel.
+4. **Report** ([`chart.py`](chart.py)): writes `bench/results.json` and `bench/memory.json`, prints the ranked summary tables, and renders `chart.svg` (full suite and memory breakdown) alongside `chart-small.svg` (compact overall-geomean card).
 
 ## What's measured
 
@@ -33,8 +33,17 @@ Each adapter implements upstream's `ReactiveFramework` contract ([`adapters/type
 | **cellx**   | the [cellx](https://github.com/Riim/cellx) interlinked 4-property layer lattice at `1,000` and `2,500` layers                                |
 | **dynamic** | 6 rectangular graphs (`5x500` to `1000x12`) mixing static and runtime-varying dependencies with eager and lazy leaf reads                    |
 | **sbench**  | `createSignals` (`20,000` signals) plus `createComputations` and `updateSignals` summed across fan-in/out topologies (`0→1`, `1→1 … 1000→1`, `1→2 … 1→1000`) |
+| **gc**      | `gc/teardown`, `gc/collect`, and `gc/live` collection times, plus steady-state node footprint and post-cleanup memory retention              |
 
-Each suite lives in [`bench/benches/`](bench/benches) with its timed cases (`20` rows total) and correctness checks (`39` checks total).
+Each suite lives in [`bench/benches/`](bench/benches) with its timed cases (`23` rows total) and correctness checks (`41` checks total).
+
+### Teardown, GC, and memory
+
+Upstream only force-collects between tests because V8 doesn't expose deterministic collection metrics. Luau's `gcinfo()` and `collectgarbage("collect")` expose deterministic full collections and live heap KB, so [`bench/benches/gc.luau`](bench/benches/gc.luau) measures the full lifecycle across `20,000` flat `signal -> computed -> effect` units (`60,000` reactive nodes).
+
+Three timed rows split disposal cost by architecture. `gc/teardown` times `cleanup()` after a warm-up cycle, which charges owner trees that unlink subscriptions eagerly. `gc/collect` times one full GC pass reclaiming the disposed graph, which charges designs that only drop root handles during teardown. `gc/live` times one full GC pass while the graph stays alive, which measures the per-cycle tracing cost of weak-table observer maps.
+
+A separate untimed pass writes `bench/memory.json` and renders the chart's memory section, which stays out of the overall geomean. **Node footprint** measures steady-state live bytes per node on a second build after pool warm-up, normalized to the leanest library. **Build retained** records KB still held after the first build, `cleanup()`, and collection (including one-time module caches and pools), while **steady retained** averages incremental KB kept across 10 further build/cleanup cycles (`~0 KB` confirms no per-build leak).
 
 ### Correctness
 
@@ -44,6 +53,7 @@ Each suite lives in [`bench/benches/`](bench/benches) with its timed cases (`20`
 - **sbench**: checks `createSignals` (including `nil` writes) and verifies that every create and update topology runs its effects at least as often as a library that skips equal writes.
 - **cellx**: checks upstream's golden leaf values at `1,000` and `2,500` layers.
 - **dynamic**: checks that upstream's unit-test graphs and all 6 timed configs match their golden leaf sums ([`bench/golden.ts`](bench/golden.ts) regenerates them).
+- **gc**: checks that `cleanup()` disposes built effects so subsequent source writes never re-run them, and validates `gc/memory` stats.
 
 Timed runs also verify their output values and mark mismatches as `DNF (wrong value)` on the chart.
 
@@ -89,3 +99,4 @@ python3 -m unittest discover -s tests -v
 ## Acknowledgments
 
 Ported from [milomg/js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark), which builds on the [cellx](https://github.com/Riim/cellx), [Reactively](https://github.com/milomg/reactively), and [SolidJS](https://github.com/solidjs/solid) benchmarks.
+

@@ -7,6 +7,7 @@
 --   luau main.luau -a bench  <adapter> <index>   { status, seconds?, detail? }
 --   luau main.luau -a evals  <adapter> <index>   node evaluations per timed unit, or null
 --   luau main.luau -a check  <adapter> <index>   { status, detail? }
+--   luau main.luau -a memory <adapter>           gc.memory's footprint and retention figures
 --
 -- status is "ok", "overflow", "table-overflow", "oom", "timeout", "wrong", or "error".
 
@@ -16,6 +17,7 @@ local kairo = require("./benches/kairo")
 local cellx = require("./benches/cellx")
 local dynamic = require("./benches/dynamic")
 local sbench = require("./benches/sbench")
+local gc = require("./benches/gc")
 
 type Framework = Types.Framework
 
@@ -24,6 +26,7 @@ local suites: { { name: string, suite: Types.Suite } } = {
 	{ name = "cellx", suite = cellx },
 	{ name = "dynamic", suite = dynamic },
 	{ name = "sbench", suite = sbench },
+	{ name = "gc", suite = gc },
 }
 
 -- Lazy thunks keep static module graph edges for typecheckers/indexers while loading only the requested adapter.
@@ -253,6 +256,8 @@ else
 			pcall(bridge.cleanup)
 			result = { status = classify(err), detail = tostring(err) }
 		end
+	elseif command == "memory" then
+		result = gc.memory(bridge)
 	else
 		error(`unknown command {tostring(command)}`, 0)
 	end

@@ -2,7 +2,7 @@
 """Run the Luau reactivity benchmark suite (see README.md).
 
 Executes each `(adapter, row)` pair in an isolated `luau` process via `bench/main.luau`. Timed rows run
-serially in rotating framework order per benchmark; untimed work (`evals`, `checks`) runs in
+serially in rotating framework order per benchmark; untimed work (`evals`, `memory`, `checks`) runs in
 parallel.
 """
 
@@ -183,6 +183,15 @@ def _collect_evals(
     return evals
 
 
+def _collect_memory(flag: str, names: list[str]) -> dict[str, dict[str, Any] | None]:
+    raw = parallel(lambda n: luau(flag, "memory", n), names, workers=VERIFY_JOBS)
+    memory: dict[str, dict[str, Any] | None] = {}
+    for name, (val, err) in zip(names, raw):
+        if err is not None:
+            print(f"  warning: memory failed for {name}: {err[1]}", file=sys.stderr)
+        memory[name] = val
+    return memory
+
 
 def _format_ratio(seconds: float | None, ref: float | None) -> str:
     if seconds is None or ref is None:
@@ -192,7 +201,11 @@ def _format_ratio(seconds: float | None, ref: float | None) -> str:
     return f"{seconds / ref:.3f}x"
 
 
-def _print_summary(rows: list[dict[str, Any]], passes: int) -> None:
+def _print_summary(
+    rows: list[dict[str, Any]],
+    memory: dict[str, dict[str, Any] | None],
+    passes: int,
+) -> None:
     order, data = chart.group_rows(rows)
     geo, counted = chart.geomeans(order, data)
     fws = chart.ranked(geo)
@@ -204,6 +217,18 @@ def _print_summary(rows: list[dict[str, Any]], passes: int) -> None:
     print("GEOMEAN".ljust(34) + "".join((f"{geo[fw]:.3f}x" if geo[fw] else "-").rjust(12) for fw in fws))
     print(f"(min across {passes} pass(es), over the {counted} rows any framework finished)")
 
+    print(f"\n{'memory':<14}{'live KB':>12}{'bytes/node':>12}{'build-ret KB':>14}{'steady KB':>12}")
+    ordered_names = [fw for fw in fws if fw in memory] + [fw for fw in memory if fw not in fws]
+    for name in ordered_names:
+        mem = memory[name]
+        if mem:
+            print(
+                f"{name:<14}{mem['liveKB']:>12,.0f}{mem['bytesPerNode']:>12.0f}"
+                f"{mem['retainedKB']:>14,.0f}{mem['steadyKB']:>12,.0f}"
+            )
+        else:
+            print(f"{name:<14}failed, left out of memory.json")
+
 
 def report(
     flag: str,
@@ -212,10 +237,11 @@ def report(
     passes: int,
     write_outputs: bool = True,
 ) -> None:
-    """Measure timed rows, collect evals, print summary table, and optionally write JSON/SVG outputs."""
+    """Measure timed rows, collect evals and memory, print tables, and optionally write JSON/SVG outputs."""
     best = measure(flag, names, benches, passes)
-    print("\ncounting node evaluations...", file=sys.stderr)
+    print("\ncounting node evaluations and memory...", file=sys.stderr)
     evals = _collect_evals(flag, names, benches, best)
+    memory = _collect_memory(flag, names)
 
     rows: list[dict[str, Any]] = []
     for bench in benches:
@@ -234,16 +260,18 @@ def report(
                 }
             )
 
+    clean_mem = {n: m for n, m in memory.items() if m}
     if write_outputs:
         assemble.write_json(chart.RESULTS, rows)
+        assemble.write_json(chart.MEMORY, clean_mem)
 
-    _print_summary(rows, passes)
+    _print_summary(rows, memory, passes)
 
     if write_outputs:
-        chart.render_from_data(rows, flag=flag)
+        chart.render_from_data(rows, clean_mem, flag=flag)
     else:
         print(
-            "\n(filtered run: skipped writing results.json and SVG charts; pass --write to overwrite)",
+            "\n(filtered run: skipped writing results.json, memory.json, and SVG charts; pass --write to overwrite)",
             file=sys.stderr,
         )
 
