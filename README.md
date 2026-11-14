@@ -1,8 +1,10 @@
 # Luau Reactivity Benchmark
 
-[![License](https://img.shields.io/github/license/kohltastrophe/luau-reactivity-benchmark?style=for-the-badge)](LICENSE.md)
+[![CI](https://img.shields.io/github/actions/workflow/status/kohltastrophe/luau-reactivity-benchmark/runner.yml?style=for-the-badge)](https://github.com/kohltastrophe/luau-reactivity-benchmark/actions/workflows/runner.yml) [![License](https://img.shields.io/github/license/kohltastrophe/luau-reactivity-benchmark?style=for-the-badge)](LICENSE.md)
 
 A Luau port of [js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark) comparing [Flux](https://github.com/kohltastrophe/flux), [Vide](https://github.com/centau/vide), [Fusion](https://github.com/dphfox/Fusion), [Charm](https://github.com/littensy/charm), and [signals](https://github.com/Roblox/signals) across identical dependency graphs. Every adapter in `adapters/` runs headless under the `luau` CLI and renders to a single chart.
+
+<a href="https://raw.githubusercontent.com/kohltastrophe/luau-reactivity-benchmark/assets/chart.svg"><img src="https://raw.githubusercontent.com/kohltastrophe/luau-reactivity-benchmark/assets/chart.svg" width="100%"/></a>
 
 ## Running it
 
@@ -100,3 +102,11 @@ python3 -m unittest discover -s tests -v
 
 Ported from [milomg/js-reactivity-benchmark](https://github.com/milomg/js-reactivity-benchmark), which builds on the [cellx](https://github.com/Riim/cellx), [Reactively](https://github.com/milomg/reactively), and [SolidJS](https://github.com/solidjs/solid) benchmarks.
 
+## Sponsors
+
+If this benchmark or my Luau libraries are useful to you or your team, you can support ongoing maintenance through [GitHub Sponsors](https://github.com/sponsors/kohltastrophe) or [Ko-fi](https://ko-fi.com/kohltastrophe).
+
+<p align="center">
+  <a href="https://github.com/sponsors/kohltastrophe"><img src="https://raw.githubusercontent.com/kohltastrophe/kohltastrophe/badges/sponsor-github.svg" alt="GitHub Sponsors" /></a>&nbsp;&nbsp;<a href="https://ko-fi.com/kohltastrophe"><img src="https://raw.githubusercontent.com/kohltastrophe/kohltastrophe/badges/sponsor-kofi.svg" alt="Ko-fi" /></a>
+  <a href="https://github.com/sponsors/kohltastrophe"><img src="https://raw.githubusercontent.com/kohltastrophe/kohltastrophe/badges/sponsors.svg" alt="Sponsors" /></a>
+</p>
