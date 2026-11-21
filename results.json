@@ -1,0 +1,1037 @@
+[
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "avoidable",
+    "status": "ok",
+    "seconds": 0.002184296519999407,
+    "evals": 2002,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "avoidable",
+    "status": "ok",
+    "seconds": 0.0008245472200019322,
+    "evals": 2002,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "avoidable",
+    "status": "ok",
+    "seconds": 0.006175937600000054,
+    "evals": 2002,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "avoidable",
+    "status": "ok",
+    "seconds": 0.00220092503999922,
+    "evals": 2002,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "avoidable",
+    "status": "ok",
+    "seconds": 0.0010565466399998513,
+    "evals": 2002,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "broad",
+    "status": "ok",
+    "seconds": 0.0036107275200004097,
+    "evals": 7650,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "broad",
+    "status": "ok",
+    "seconds": 0.001591064619999969,
+    "evals": 7650,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "broad",
+    "status": "ok",
+    "seconds": 0.02971280233999991,
+    "evals": 7650,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "broad",
+    "status": "ok",
+    "seconds": 0.004033563560000175,
+    "evals": 7650,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "broad",
+    "status": "ok",
+    "seconds": 0.002861853459999111,
+    "evals": 7650,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "deep",
+    "status": "ok",
+    "seconds": 0.0010827442000000075,
+    "evals": 2601,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "deep",
+    "status": "ok",
+    "seconds": 0.0005024854999999207,
+    "evals": 2601,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "deep",
+    "status": "ok",
+    "seconds": 0.00574411343999941,
+    "evals": 2601,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "deep",
+    "status": "ok",
+    "seconds": 0.0013544914199999881,
+    "evals": 2601,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "deep",
+    "status": "ok",
+    "seconds": 0.0009489490800001477,
+    "evals": 2601,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "diamond",
+    "status": "ok",
+    "seconds": 0.002214258120000068,
+    "evals": 3507,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "diamond",
+    "status": "ok",
+    "seconds": 0.0011628069799996866,
+    "evals": 3507,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "diamond",
+    "status": "ok",
+    "seconds": 0.009692870779999793,
+    "evals": 3507,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "diamond",
+    "status": "ok",
+    "seconds": 0.0023780997199997957,
+    "evals": 3507,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "diamond",
+    "status": "ok",
+    "seconds": 0.0017597626800011311,
+    "evals": 3507,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "mux",
+    "status": "ok",
+    "seconds": 0.0017246111199983715,
+    "evals": 1854,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "mux",
+    "status": "ok",
+    "seconds": 0.0004895965399998658,
+    "evals": 1854,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "mux",
+    "status": "ok",
+    "seconds": 0.03149957928000049,
+    "evals": 1854,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "mux",
+    "status": "ok",
+    "seconds": 0.0022306324799998833,
+    "evals": 1854,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "mux",
+    "status": "ok",
+    "seconds": 0.000967286759999979,
+    "evals": 1854,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "repeated",
+    "status": "ok",
+    "seconds": 0.00043444541999974716,
+    "evals": 202,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "repeated",
+    "status": "ok",
+    "seconds": 0.0002460208600001579,
+    "evals": 202,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "repeated",
+    "status": "ok",
+    "seconds": 0.0019774375999998027,
+    "evals": 202,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "repeated",
+    "status": "ok",
+    "seconds": 0.0004635675800000172,
+    "evals": 202,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "repeated",
+    "status": "ok",
+    "seconds": 0.0005847922399999561,
+    "evals": 202,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "triangle",
+    "status": "ok",
+    "seconds": 0.0007016741000006732,
+    "evals": 1111,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "triangle",
+    "status": "ok",
+    "seconds": 0.00039797904000124615,
+    "evals": 1111,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "triangle",
+    "status": "ok",
+    "seconds": 0.003303798759998244,
+    "evals": 1111,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "triangle",
+    "status": "ok",
+    "seconds": 0.0008374642399996902,
+    "evals": 1111,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "triangle",
+    "status": "ok",
+    "seconds": 0.001465693119999969,
+    "evals": 2020,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "unstable",
+    "status": "ok",
+    "seconds": 0.0007471632800002226,
+    "evals": 303,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "unstable",
+    "status": "ok",
+    "seconds": 0.00046192099999984746,
+    "evals": 304,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "unstable",
+    "status": "ok",
+    "seconds": 0.0028735291999998935,
+    "evals": 303,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "unstable",
+    "status": "ok",
+    "seconds": 0.0006812055199998212,
+    "evals": 403,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "unstable",
+    "status": "ok",
+    "seconds": 0.0008370890799994868,
+    "evals": 406,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "kairo",
+    "test": "mol",
+    "status": "ok",
+    "seconds": 0.00037302342000089083,
+    "evals": 13,
+    "cap": 0.16
+  },
+  {
+    "framework": "flux",
+    "suite": "kairo",
+    "test": "mol",
+    "status": "ok",
+    "seconds": 0.00036900393999985683,
+    "evals": 13,
+    "cap": 0.16
+  },
+  {
+    "framework": "fusion",
+    "suite": "kairo",
+    "test": "mol",
+    "status": "ok",
+    "seconds": 0.0010522117599998638,
+    "evals": 29,
+    "cap": 0.16
+  },
+  {
+    "framework": "signals",
+    "suite": "kairo",
+    "test": "mol",
+    "status": "ok",
+    "seconds": 0.0003718294199984484,
+    "evals": 13,
+    "cap": 0.16
+  },
+  {
+    "framework": "vide",
+    "suite": "kairo",
+    "test": "mol",
+    "status": "ok",
+    "seconds": 0.0005118235600002663,
+    "evals": 15,
+    "cap": 0.16
+  },
+  {
+    "framework": "charm",
+    "suite": "cellx",
+    "test": "cellx1000",
+    "status": "ok",
+    "seconds": 0.005948231000007809,
+    "evals": 8000,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "cellx",
+    "test": "cellx1000",
+    "status": "ok",
+    "seconds": 0.002158897199990406,
+    "evals": 8000,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "cellx",
+    "test": "cellx1000",
+    "status": "table-overflow",
+    "seconds": null,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "cellx",
+    "test": "cellx1000",
+    "status": "ok",
+    "seconds": 0.007118637399997851,
+    "evals": 8000,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "cellx",
+    "test": "cellx1000",
+    "status": "ok",
+    "seconds": 0.003551550000008774,
+    "evals": 8000,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "cellx",
+    "test": "cellx2500",
+    "status": "ok",
+    "seconds": 0.01757979719999412,
+    "evals": 20000,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "cellx",
+    "test": "cellx2500",
+    "status": "ok",
+    "seconds": 0.005579383699995333,
+    "evals": 20000,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "cellx",
+    "test": "cellx2500",
+    "status": "table-overflow",
+    "seconds": null,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "cellx",
+    "test": "cellx2500",
+    "status": "ok",
+    "seconds": 0.02266259070000274,
+    "evals": 20000,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "cellx",
+    "test": "cellx2500",
+    "status": "ok",
+    "seconds": 0.009033966399988458,
+    "evals": 20000,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "dynamic",
+    "test": "2-10x5 - lazy80%",
+    "status": "ok",
+    "seconds": 0.06154135999997834,
+    "evals": 79200,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "dynamic",
+    "test": "2-10x5 - lazy80%",
+    "status": "ok",
+    "seconds": 0.03315387700001793,
+    "evals": 79200,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "dynamic",
+    "test": "2-10x5 - lazy80%",
+    "status": "ok",
+    "seconds": 0.29679782600010185,
+    "evals": 79200,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "dynamic",
+    "test": "2-10x5 - lazy80%",
+    "status": "ok",
+    "seconds": 0.07087587600000234,
+    "evals": 79200,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "dynamic",
+    "test": "2-10x5 - lazy80%",
+    "status": "ok",
+    "seconds": 0.10419408199999225,
+    "evals": 177600,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "dynamic",
+    "test": "6-10x10 - dyn25% - lazy80%",
+    "status": "ok",
+    "seconds": 0.23158585800001674,
+    "evals": 156000,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "dynamic",
+    "test": "6-10x10 - dyn25% - lazy80%",
+    "status": "ok",
+    "seconds": 0.10074540999994497,
+    "evals": 156000,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "dynamic",
+    "test": "6-10x10 - dyn25% - lazy80%",
+    "status": "timeout",
+    "seconds": null,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "dynamic",
+    "test": "6-10x10 - dyn25% - lazy80%",
+    "status": "ok",
+    "seconds": 0.2813654859999133,
+    "evals": 156000,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "dynamic",
+    "test": "6-10x10 - dyn25% - lazy80%",
+    "status": "ok",
+    "seconds": 0.211682263000057,
+    "evals": 174000,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "dynamic",
+    "test": "4-1000x12 - dyn5%",
+    "status": "ok",
+    "seconds": 1.0398592910000843,
+    "evals": 420000,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "dynamic",
+    "test": "4-1000x12 - dyn5%",
+    "status": "ok",
+    "seconds": 0.41117872699999225,
+    "evals": 420000,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "dynamic",
+    "test": "4-1000x12 - dyn5%",
+    "status": "timeout",
+    "seconds": null,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "dynamic",
+    "test": "4-1000x12 - dyn5%",
+    "status": "ok",
+    "seconds": 1.5141087079999807,
+    "evals": 420000,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "dynamic",
+    "test": "4-1000x12 - dyn5%",
+    "status": "ok",
+    "seconds": 0.7875347100000454,
+    "evals": 420000,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "dynamic",
+    "test": "25-1000x5",
+    "status": "ok",
+    "seconds": 3.3063848890000145,
+    "evals": 490000,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "dynamic",
+    "test": "25-1000x5",
+    "status": "ok",
+    "seconds": 1.0908900149999,
+    "evals": 490000,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "dynamic",
+    "test": "25-1000x5",
+    "status": "timeout",
+    "seconds": null,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "dynamic",
+    "test": "25-1000x5",
+    "status": "ok",
+    "seconds": 4.4300486299999875,
+    "evals": 490000,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "dynamic",
+    "test": "25-1000x5",
+    "status": "ok",
+    "seconds": 2.7430405310000197,
+    "evals": 490000,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "dynamic",
+    "test": "3-5x500",
+    "status": "ok",
+    "seconds": 0.7383849459999965,
+    "evals": 748200,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "dynamic",
+    "test": "3-5x500",
+    "status": "ok",
+    "seconds": 0.3405812150000429,
+    "evals": 748200,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "dynamic",
+    "test": "3-5x500",
+    "status": "table-overflow",
+    "seconds": null,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "dynamic",
+    "test": "3-5x500",
+    "status": "ok",
+    "seconds": 1.0004650669999933,
+    "evals": 748200,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "dynamic",
+    "test": "3-5x500",
+    "status": "ok",
+    "seconds": 0.5509784060000129,
+    "evals": 748200,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "dynamic",
+    "test": "6-100x15 - dyn50%",
+    "status": "ok",
+    "seconds": 1.0813464180000096,
+    "evals": 540000,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "dynamic",
+    "test": "6-100x15 - dyn50%",
+    "status": "ok",
+    "seconds": 0.39200135799995905,
+    "evals": 540000,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "dynamic",
+    "test": "6-100x15 - dyn50%",
+    "status": "table-overflow",
+    "seconds": null,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "dynamic",
+    "test": "6-100x15 - dyn50%",
+    "status": "ok",
+    "seconds": 1.300099206999903,
+    "evals": 540000,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "dynamic",
+    "test": "6-100x15 - dyn50%",
+    "status": "ok",
+    "seconds": 0.7017001120000259,
+    "evals": 540000,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "sbench",
+    "test": "createSignals",
+    "status": "ok",
+    "seconds": 0.010443966000025284,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "sbench",
+    "test": "createSignals",
+    "status": "ok",
+    "seconds": 0.00843754700002819,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "sbench",
+    "test": "createSignals",
+    "status": "ok",
+    "seconds": 0.013387706999992588,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "sbench",
+    "test": "createSignals",
+    "status": "ok",
+    "seconds": 0.016714863000004243,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "sbench",
+    "test": "createSignals",
+    "status": "ok",
+    "seconds": 0.00635164999994231,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "sbench",
+    "test": "createComputations",
+    "status": "ok",
+    "seconds": 0.2746497040001259,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "sbench",
+    "test": "createComputations",
+    "status": "ok",
+    "seconds": 0.08412606999991112,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "sbench",
+    "test": "createComputations",
+    "status": "ok",
+    "seconds": 0.6935946699999249,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "sbench",
+    "test": "createComputations",
+    "status": "ok",
+    "seconds": 0.16444372400002294,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "sbench",
+    "test": "createComputations",
+    "status": "ok",
+    "seconds": 0.13697614400030034,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "sbench",
+    "test": "updateSignals",
+    "status": "ok",
+    "seconds": 0.10066934999986188,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "sbench",
+    "test": "updateSignals",
+    "status": "ok",
+    "seconds": 0.030121030000145765,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "sbench",
+    "test": "updateSignals",
+    "status": "ok",
+    "seconds": 3.3483682199999976,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "sbench",
+    "test": "updateSignals",
+    "status": "ok",
+    "seconds": 0.0837124950000998,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "sbench",
+    "test": "updateSignals",
+    "status": "ok",
+    "seconds": 0.07280072799994741,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "gc",
+    "test": "teardown",
+    "status": "ok",
+    "seconds": 0.016675065999947947,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "gc",
+    "test": "teardown",
+    "status": "ok",
+    "seconds": 0.0032620290000409113,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "gc",
+    "test": "teardown",
+    "status": "ok",
+    "seconds": 0.021684727000035764,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "gc",
+    "test": "teardown",
+    "status": "ok",
+    "seconds": 0.003967549999970288,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "gc",
+    "test": "teardown",
+    "status": "ok",
+    "seconds": 0.006817441999942275,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "gc",
+    "test": "collect",
+    "status": "ok",
+    "seconds": 0.02547860300001048,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "gc",
+    "test": "collect",
+    "status": "ok",
+    "seconds": 0.0019884929999989254,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "gc",
+    "test": "collect",
+    "status": "ok",
+    "seconds": 0.017016320999971413,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "gc",
+    "test": "collect",
+    "status": "ok",
+    "seconds": 0.013501397000027282,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "gc",
+    "test": "collect",
+    "status": "ok",
+    "seconds": 0.004790040999978373,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "charm",
+    "suite": "gc",
+    "test": "live",
+    "status": "ok",
+    "seconds": 0.012934444999984862,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "flux",
+    "suite": "gc",
+    "test": "live",
+    "status": "ok",
+    "seconds": 0.003141433000109828,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "fusion",
+    "suite": "gc",
+    "test": "live",
+    "status": "ok",
+    "seconds": 0.015416980000054537,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "signals",
+    "suite": "gc",
+    "test": "live",
+    "status": "ok",
+    "seconds": 0.029316912000012962,
+    "evals": null,
+    "cap": 8
+  },
+  {
+    "framework": "vide",
+    "suite": "gc",
+    "test": "live",
+    "status": "ok",
+    "seconds": 0.0034077200000410812,
+    "evals": null,
+    "cap": 8
+  }
+]
